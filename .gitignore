@@ -1,0 +1,18 @@
+# Environment variables / secrets
+.env
+
+# Python cache & build artifacts
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Local databases / user storage
+data.json
+*.sqlite3
+*.db
