@@ -2,47 +2,66 @@
   "jadwal": {
     "senin": [
       {
-        "jam": "08:00 - 09:40",
-        "matkul": "Struktur Data & Algoritma",
-        "ruang": "Lab Komputer 1"
-      },
-      {
-        "jam": "10:00 - 11:40",
-        "matkul": "Matematika Diskrit",
-        "ruang": "R. 302"
+        "jam": "07:00 - 09:30",
+        "matkul": "Internet Of Things (IoT)",
+        "kelas": "A",
+        "ruang": "LAB KOM A"
       }
     ],
     "selasa": [
       {
-        "jam": "08:00 - 10:30",
-        "matkul": "Basis Data",
-        "ruang": "Lab Komputer 2"
+        "jam": "07:30 - 09:10",
+        "matkul": "Sistem Kendali",
+        "kelas": "A",
+        "ruang": "SISKOM 3"
+      },
+      {
+        "jam": "10:15 - 11:55",
+        "matkul": "Keamanan Jaringan",
+        "kelas": "B",
+        "ruang": "LAB KOM A"
+      },
+      {
+        "jam": "13:30 - 16:20",
+        "matkul": "Praktikum Keamanan Jaringan",
+        "kelas": "B",
+        "ruang": "LAB KOM A"
       }
     ],
     "rabu": [
       {
-        "jam": "09:00 - 11:30",
-        "matkul": "Pemrograman Berorientasi Objek",
-        "ruang": "R. 204"
+        "jam": "07:30 - 10:00",
+        "matkul": "Pemrosesan Sinyal",
+        "kelas": "A",
+        "ruang": "SISKOM 2"
       },
       {
-        "jam": "13:00 - 14:40",
-        "matkul": "Bahasa Inggris",
-        "ruang": "R. 101"
+        "jam": "13:00 - 15:30",
+        "matkul": "Komputasi Paralel",
+        "kelas": "A",
+        "ruang": "SISKOM 3"
       }
     ],
     "kamis": [
       {
-        "jam": "10:00 - 12:30",
-        "matkul": "Jaringan Komputer",
-        "ruang": "Lab Jaringan"
+        "jam": "13:00 - 14:40",
+        "matkul": "Metodologi Penelitian",
+        "kelas": "A",
+        "ruang": "SISKOM 2"
       }
     ],
     "jumat": [
       {
-        "jam": "08:30 - 11:00",
-        "matkul": "Sistem Operasi",
-        "ruang": "R. 305"
+        "jam": "08:30 - 10:30",
+        "matkul": "Komputasi Ubiquitous",
+        "kelas": "A",
+        "ruang": "SISKOM 2"
+      },
+      {
+        "jam": "13:30 - 15:10",
+        "matkul": "Kecakapan Antar Personal",
+        "kelas": "A",
+        "ruang": "SISKOM 3"
       }
     ],
     "sabtu": [],

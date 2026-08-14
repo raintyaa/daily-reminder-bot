@@ -44,6 +44,7 @@ def format_jadwal_hari(hari: str, list_matkul: list) -> str:
         teks += f"\n{i}. **{item.get('matkul', '-')}**\n"
         teks += f"   ⏰ Waktu  : {item.get('jam', '-')}\n"
         teks += f"   📍 Ruang  : {item.get('ruang', '-')}\n"
+        teks += f"   🏫 Kelas  : {item.get('kelas', '-')}\n"
     return teks
 
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
