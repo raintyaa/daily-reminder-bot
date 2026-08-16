@@ -6,6 +6,9 @@ from bot import (
     load_tugas_data,
     save_tugas_data,
     is_valid_deadline,
+    generate_daily_briefing,
+    load_subscribers,
+    register_subscriber,
 )
 
 def test_handlers():
@@ -19,12 +22,12 @@ def test_handlers():
     
     expected_commands = {
         "start", "help", "jadwal", "rutinitas",
-        "tambahtugas", "listtugas", "selesai"
+        "tambahtugas", "listtugas", "selesai", "cekpengingat"
     }
     for cmd in expected_commands:
         assert cmd in flat_commands, f"Handler /{cmd} tidak terdaftar!"
     
-    print("[OK] Semua handler (/start, /help, /jadwal, /rutinitas, /tambahtugas, /listtugas, /selesai) terdaftar.")
+    print("[OK] Semua handler (/start, /help, /jadwal, /rutinitas, /tambahtugas, /listtugas, /selesai, /cekpengingat) terdaftar.")
 
 def test_jadwal_data():
     """Memverifikasi data jadwal dan rutinitas dapat dimuat dengan baik"""
@@ -43,7 +46,7 @@ def test_tugas_crud():
         {
             "id": 1,
             "nama_tugas": "Tugas Uji Coba",
-            "deadline": "2026-08-30",
+            "deadline": "20-08-2026",
             "matkul": "Keamanan Jaringan",
             "dibuat_pada": "2026-08-15 07:00:00"
         }
@@ -54,7 +57,6 @@ def test_tugas_crud():
     assert loaded[0]["nama_tugas"] == "Tugas Uji Coba", "Data tugas tidak cocok!"
     print("[OK] Logika penyimpanan tugas (tugas.json) terverifikasi.")
 
-
 def test_deadline_format_validation():
     """Memastikan tanggal deadline harus menggunakan format dd-mm-yyyy"""
     assert is_valid_deadline("20-08-2026") is True
@@ -63,10 +65,25 @@ def test_deadline_format_validation():
     assert is_valid_deadline("20/08/2026") is False
     print("[OK] Validasi format deadline terverifikasi.")
 
+def test_daily_briefing():
+    """Memverifikasi perangkaian pesan briefing harian otomatis"""
+    briefing = generate_daily_briefing()
+    assert "PENGINGAT HARIAN" in briefing, "Header pengingat harian tidak ditemukan!"
+    print("[OK] Logika perangkaian pesan briefing harian terverifikasi.")
+
+def test_subscribers():
+    """Memverifikasi pencatatan subscriber chat id"""
+    dummy_chat_id = 99887766
+    register_subscriber(dummy_chat_id)
+    subs = load_subscribers()
+    assert dummy_chat_id in subs, "Chat ID tidak berhasil didaftarkan!"
+    print("[OK] Logika pendaftaran chat ID (subscriber) terverifikasi.")
 
 if __name__ == "__main__":
     test_handlers()
     test_jadwal_data()
     test_tugas_crud()
     test_deadline_format_validation()
-    print("[OK] Seluruh self-check Hari 3 berhasil!")
+    test_daily_briefing()
+    test_subscribers()
+    print("[OK] Seluruh self-check Hari 4 berhasil!")

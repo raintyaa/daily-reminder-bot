@@ -1,5 +1,6 @@
 import os
 import sys
+import asyncio
 import json
 from datetime import datetime
 from dotenv import load_dotenv
@@ -12,6 +13,7 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 
 JADWAL_FILE = os.path.join(os.path.dirname(__file__), "jadwal.json")
 TUGAS_FILE = os.path.join(os.path.dirname(__file__), "tugas.json")
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 
 HARI_INDONESIA = {
     0: "senin",
@@ -55,6 +57,29 @@ def save_tugas_data(tugas_list: list) -> bool:
         print(f"Error menyimpan tugas.json: {e}")
         return False
 
+def load_subscribers() -> list:
+    """Membaca daftar chat_id yang terdaftar untuk pengingat"""
+    if not os.path.exists(CONFIG_FILE):
+        return []
+    try:
+        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            return data.get("subscribers", [])
+    except Exception as e:
+        print(f"Error membaca config.json: {e}")
+        return []
+
+def register_subscriber(chat_id: int) -> None:
+    """Mendaftarkan chat_id agar menerima notifikasi otomatis"""
+    subs = load_subscribers()
+    if chat_id not in subs:
+        subs.append(chat_id)
+        try:
+            with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+                json.dump({"subscribers": subs}, f, indent=2)
+        except Exception as e:
+            print(f"Error menyimpan config.json: {e}")
+
 def is_valid_deadline(deadline: str) -> bool:
     """Memeriksa apakah deadline sesuai format DD-MM-YYYY."""
     if not deadline or deadline == "-":
@@ -80,8 +105,63 @@ def format_jadwal_hari(hari: str, list_matkul: list) -> str:
         teks += f"   🏫 Kelas  : {item.get('kelas', '-')}\n"
     return teks
 
+def generate_daily_briefing() -> str:
+    """Merangkai pesan briefing harian: jadwal kuliah hari ini & status deadline tugas"""
+    hari_index = datetime.now().weekday()
+    hari_ini = HARI_INDONESIA.get(hari_index, "senin")
+
+    jadwal_data = load_jadwal_data()
+    list_matkul = jadwal_data.get("jadwal", {}).get(hari_ini, [])
+
+    pesan = f"☀️ **PENGINGAT HARIAN ({hari_ini.upper()})** ☀️\n\n"
+
+    if list_matkul:
+        pesan += "📚 **Jadwal Kuliah Hari Ini:**\n"
+        for i, item in enumerate(list_matkul, 1):
+            pesan += f"{i}. **{item.get('matkul')}** ({item.get('jam')})\n"
+            pesan += f"   📍 Ruang: {item.get('ruang')} | Kelas: {item.get('kelas', '-')}\n"
+    else:
+        pesan += "🏖️ **Kuliah:** Hari ini libur / tidak ada jadwal kelas.\n"
+
+    pesan += "\n----------------------------\n"
+
+    tugas_list = load_tugas_data()
+    today_dt = datetime.now().date()
+    tugas_mendesak = []
+
+    for t in tugas_list:
+        deadline_str = t.get("deadline", "")
+        try:
+            deadline_dt = datetime.strptime(deadline_str, "%d-%m-%Y").date()
+            selisih_hari = (deadline_dt - today_dt).days
+
+            if selisih_hari < 0:
+                status = "🔴 *Lewat deadline!*"
+            elif selisih_hari == 0:
+                status = "🚨 *DEADLINE HARI INI!*"
+            elif selisih_hari <= 1:
+                status = "⚠️ *Deadline BESOK!*"
+            elif selisih_hari <= 3:
+                status = "⏳ *{selisih_hari} hari lagi*"
+            else:
+                 status = f"🗓️ {selisih_hari} hari lagi"
+
+            tugas_mendesak.append(f"• **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str} ({status})")
+        except ValueError:
+            continue
+
+    if tugas_mendesak:
+        pesan += "\n📝 **Status Tugas Kuliah:**\n" + "\n".join(tugas_mendesak)
+    else:
+        pesan += "\n🎉 **Tugas Kuliah:** Tidak ada tanggungan tugas saat ini!"
+
+    return pesan
+
+
 async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler untuk perintah /start"""
+    if update.effective_chat:
+        register_subscriber(update.effective_chat.id)
     user_name = update.effective_user.first_name if update.effective_user else "Mahasiswa"
     pesan = (
         f"Halo {user_name}! 👋\n\n"
@@ -108,6 +188,9 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/listtugas` - Daftar tugas aktif\n"
         "• `/selesai [ID]` - Tandai tugas selesai / hapus\n\n"
         "• `/help` - Menampilkan bantuan ini\n\n"
+        "⏰ **Pengingat Otomatis:**\n"
+        "• `/cekpengingat` - Cek ringkasan briefing hari ini sekarang\n"
+        "• *Bot juga otomatis mengirim briefing setiap jam 07:00 pagi!*\n\n"
         "⏳ *Roadmap Hari 4:*\n"
         "• Pengingat otomatis (*Auto Scheduler*)"
     )
@@ -268,8 +351,34 @@ async def selesai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
+async def cekpengingat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handles untuk perintah /cekpengingat (melihat pesan briefing secara instan)"""
+    pesan = generate_daily_briefing()
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
+async def auto_reminder_loop(app) -> None:
+    """Loop latar belakang yang otomatis mengirim briefing setiap pagi jam 07:00 WIB"""
+    terakhir_dikirim = None
+    while True:
+        now = datetime.now()
+        if now.hour == 7 and now.minute == 0 and terakhir_dikirim != now.date():
+            subscribers = load_subscribers()
+            if subscribers:
+                pesan = generate_daily_briefing()
+                for chat_id in subscribers:
+                    try:
+                        await app.bot.send_message(chat_id=chat_id, text=pesan, parse_mode="Markdown")
+                    except Exception as e:
+                        print(f"Gagal mengirim pesan ke {chat_id}: {e}")
+                terakhir_dikirim = now.date()
+        await asyncio.sleep(30)
+
+async def post_init(application) -> None:
+    """Otomatis dijalankan saat bot aktif untuk menyalakan background task"""
+    asyncio.create_task(auto_reminder_loop(application))
+
 def build_app(token: str):
-    """Membangun aplikasi bot telegram dengan handler terdaftar"""
+    """Membangun aplikasi bot telegram dengan handler terdaftar & scheduler aktif"""
     app = ApplicationBuilder().token(token).build()
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
@@ -278,6 +387,7 @@ def build_app(token: str):
     app.add_handler(CommandHandler("tambahtugas", tambahtugas_command))
     app.add_handler(CommandHandler("listtugas", listtugas_command))
     app.add_handler(CommandHandler("selesai", selesai_command))
+    app.add_handler(CommandHandler("cekpengingat", cekpengingat_command))
     return app
 
 def main() -> None:

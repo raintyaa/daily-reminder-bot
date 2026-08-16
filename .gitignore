@@ -15,5 +15,6 @@ ENV/
 # Local databases / user storage
 data.json
 tugas.json
+config.json
 *.sqlite3
 *.db
