@@ -95,6 +95,12 @@ def test_subscribers():
     register_subscriber(dummy_chat_id)
     subs = load_subscribers()
     assert dummy_chat_id in subs, "Chat ID tidak berhasil didaftarkan!"
+    # Bersihkan dummy id agar tidak mengotori config
+    subs.remove(dummy_chat_id)
+    import json
+    from bot import CONFIG_FILE
+    with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+        json.dump({"subscribers": subs}, f, indent=2)
     print("[OK] Logika pendaftaran chat ID (subscriber) terverifikasi.")
 
 if __name__ == "__main__":

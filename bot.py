@@ -274,7 +274,7 @@ async def rutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             pesan += f"{i}. {item}\n"
 
     await update.message.reply_text(pesan, parse_mode="Markdown")
-    
+
 async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler untuk perintah /tambahtugas [Nama Tugas] | [DD-MM-YYYY] | [Matkul]"""
     input_teks = " ".join(context.args) if context.args else ""
@@ -474,21 +474,65 @@ async def cekpengingat_command(update: Update, context: ContextTypes.DEFAULT_TYP
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def auto_reminder_loop(app) -> None:
-    """Loop latar belakang yang otomatis mengirim briefing setiap pagi jam 07:00 WIB"""
-    terakhir_dikirim = None
+    """Loop latar belakang yang otomatis mengirim briefing setiap pagi jam 07:00 & alarm pengingat tepat pada jam rutinitas"""
+    briefing_terakhir = None
+    rutinitas_terkirim = set()
+
     while True:
-        now = datetime.now()
-        if now.hour == 7 and now.minute == 0 and terakhir_dikirim != now.date():
-            subscribers = load_subscribers()
-            if subscribers:
-                pesan = generate_daily_briefing()
-                for chat_id in subscribers:
-                    try:
-                        await app.bot.send_message(chat_id=chat_id, text=pesan, parse_mode="Markdown")
-                    except Exception as e:
-                        print(f"Gagal mengirim pesan ke {chat_id}: {e}")
-                terakhir_dikirim = now.date()
-        await asyncio.sleep(30)
+        try:
+            now = datetime.now()
+            today_date = now.date()
+            current_time_str = now.strftime("%H:%M")
+
+            if now.hour == 7 and now.minute == 0 and briefing_terakhir != today_date:
+                subscribers = load_subscribers()
+                if subscribers:
+                    pesan = generate_daily_briefing()
+                    for chat_id in subscribers:
+                        try:
+                            await app.bot.send_message(chat_id=chat_id, text=pesan, parse_mode="Markdown")
+                            print(f"[scheduler] Briefing pagi terkirim ke {chat_id}")
+                        except Exception as e:
+                            print(f"[Scheduler] Gagal kirim briefing ke {chat_id}: {e}")
+                    briefing_terakhir = today_date
+
+            jadwal_data = load_jadwal_data()
+            rutinitas_list = jadwal_data.get("rutinitas", [])
+
+            for item in rutinitas_list:
+                if " - " in item:
+                    jam_target, nama_rutinitas = item.split(" - ", 1)
+                    jam_target = jam_target.strip().replace(".", ":")
+                    if len(jam_target.split(":")[0]) == 1:
+                        jam_target = "0" + jam_target
+
+                    nama_rutinitas = nama_rutinitas.strip()
+                    key_rutinitas = f"{today_date}_{jam_target}"
+
+                    if current_time_str == jam_target and key_rutinitas not in rutinitas_terkirim:
+                        subscribers = load_subscribers()
+                        print(f"[scheduler] Pukul {current_time_str}: Waktu cocok! Mengirim '{nama_rutinitas}' ke: {subscribers}")
+                        if subscribers:
+                            pesan_rutinitas = (
+                                f"⏰ **PENGINGAT RUTINITAS ({jam_target})**\n\n"
+                                f"🔔 *Waktunya:* **{nama_rutinitas}**"                            
+                            )
+                            for chat_id in subscribers:
+                                try:
+                                    await app.bot.send_message(chat_id=chat_id, text=pesan_rutinitas, parse_mode="Markdown")
+                                    print(f"[scheduler] ✅ Berhasil mengirim alarm ke {chat_id}")
+                                except Exception as e:
+                                    print(f"[Scheduler] ❌ Gagal kirim alarm ke {chat_id}: {e}")
+                        rutinitas_terkirim.add(key_rutinitas)
+
+            if len(rutinitas_terkirim) > 30:
+                rutinitas_terkirim.clear()
+
+        except Exception as err:
+            print(f"[Scheduler Error] {err}")
+
+        await asyncio.sleep(25)
+                
 
 async def post_init(application) -> None:
     """Otomatis dijalankan saat bot aktif untuk menyalakan background task"""
@@ -496,7 +540,8 @@ async def post_init(application) -> None:
 
 def build_app(token: str):
     """Membangun aplikasi bot telegram dengan handler terdaftar & scheduler aktif"""
-    app = ApplicationBuilder().token(token).build()
+    app = ApplicationBuilder().token(token).post_init(post_init).build()
+    app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("start", start_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("jadwal", jadwal_command))
