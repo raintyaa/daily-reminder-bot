@@ -16,5 +16,6 @@ ENV/
 data.json
 tugas.json
 config.json
+todo.json
 *.sqlite3
 *.db

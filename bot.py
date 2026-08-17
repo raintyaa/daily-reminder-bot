@@ -14,6 +14,7 @@ TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 JADWAL_FILE = os.path.join(os.path.dirname(__file__), "jadwal.json")
 TUGAS_FILE = os.path.join(os.path.dirname(__file__), "tugas.json")
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
+TODO_FILE = os.path.join(os.path.dirname(__file__), "todo.json")
 
 HARI_INDONESIA = {
     0: "senin",
@@ -55,6 +56,27 @@ def save_tugas_data(tugas_list: list) -> bool:
         return True
     except Exception as e:
         print(f"Error menyimpan tugas.json: {e}")
+        return False
+
+def load_todo_data() -> list:
+    """Membaca daftar to-do spontan dari todo.json"""
+    if not os.path.exists(TODO_FILE):
+        return []
+    try:
+        with open(TODO_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error membaca todo.json: {e}")
+        return []
+
+def save_todo_data(todo_list: list) -> bool:
+    """Menyimpan daftar to-do spontan ke todo.json"""
+    try:
+        with open(TODO_FILE, "w", encoding="utf-8") as f:
+            json.dump(todo_list, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error menyimpan todo.json: {e}")
         return False
 
 def load_subscribers() -> list:
@@ -155,6 +177,14 @@ def generate_daily_briefing() -> str:
     else:
         pesan += "\n🎉 **Tugas Kuliah:** Tidak ada tanggungan tugas saat ini!"
 
+    todo_list = load_todo_data()
+    if todo_list:
+        pesan += "\n----------------------------\n"
+        pesan += "\n📌 **Daftar To-Do Spontan Hari Ini:**\n"
+        for item in todo_list:
+            pesan += f"• 🆔 `#{item.get('id')}`: {item.get('kegiatan')}\n"
+
+
     return pesan
 
 
@@ -187,12 +217,13 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/tambahtugas [Nama] | [Deadline] | [Matkul]` - Catat tugas baru\n"
         "• `/listtugas` - Daftar tugas aktif\n"
         "• `/selesai [ID]` - Tandai tugas selesai / hapus\n\n"
-        "• `/help` - Menampilkan bantuan ini\n\n"
+        "📌 **To-Do Spontan (Non-Kuliah):**\n"
+        "• `/todo [Kegiatan]` - Catat to-do cepat\n"
+        "• `/listtodo` - Daftar to-do aktif\n"
+        "• `/berestodo [ID]` - Coret to-do selesai\n\n"        
         "⏰ **Pengingat Otomatis:**\n"
         "• `/cekpengingat` - Cek ringkasan briefing hari ini sekarang\n"
         "• *Bot juga otomatis mengirim briefing setiap jam 07:00 pagi!*\n\n"
-        "⏳ *Roadmap Hari 4:*\n"
-        "• Pengingat otomatis (*Auto Scheduler*)"
     )
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
@@ -242,6 +273,8 @@ async def rutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         for i, item in enumerate(rutinitas, 1):
             pesan += f"{i}. {item}\n"
 
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+    
 async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler untuk perintah /tambahtugas [Nama Tugas] | [DD-MM-YYYY] | [Matkul]"""
     input_teks = " ".join(context.args) if context.args else ""
@@ -351,6 +384,90 @@ async def selesai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     )
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
+async def todo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk perintah /todo [kegiatan] (mencatat to-do spontan/non-kuliah)"""
+    kegiatan = " ".join(context.args) if context.args else ""
+    if not kegiatan:
+        pesan = (
+            "⚠️ **Masukkan kegiatan yang ingin dicatat!**\n\n"
+            "💡 **Contoh:**\n"
+            "• `/todo Ambil laundry sore ini`\n"
+            "• `/todo Beli binder dan pulpen di fotokopian`\n"
+            "• `/todo Bayar uang kas`"
+        )
+        await update.message.reply_text(pesan, parse_mode="Markdown")
+        return
+
+    todo_list = load_todo_data()
+    next_id = max([t.get("id", 0) for t in todo_list], default=0) + 1
+
+    item_baru = {
+        "id": next_id,
+        "kegiatan": kegiatan,
+        "dibuat_pada": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    todo_list.append(item_baru)
+    if save_todo_data(todo_list):
+        pesan = (
+            f"✅ **To-Do Berhasil Dicatat!**\n\n"
+            f"🆔 **ID:** `#{next_id}`\n"
+            f"📌 **Kegiatan:** {kegiatan}\n\n"
+            "Ketik `/listtodo` untuk melihat semua to-do aktif."            
+        )
+    else:
+        pesan = "❌ Gagal menyimpan to-do ke database."
+
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
+async def listtodo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk perintah /listtodo (melihat daftar to-do spontan)"""
+    todo_list = load_todo_data()
+    if not todo_list:
+        await update.message.reply_text("🎉 **Tidak ada to-do aktif!** Semua urusan harianmu sudah beres.", parse_mode="Markdown")
+        return
+
+    pesan = "📌 **DAFTAR TO-DO SPONTAN AKTIF**:\n\n"
+    for item in todo_list:
+        pesan += f"• 🆔 `#{item.get('id')}` : **{item.get('kegiatan', '-')}**\n"
+
+    pesan += "\n💡 *Gunakan `/berestodo [ID]` untuk mencoret to-do yang selesai.*"
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
+async def berestodo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk perintah /berestodo [ID] (mencoret/menghapus to-do)"""
+    if not context.args:
+        await update.message.reply_text("⚠️ Masukkan ID to-do yang ingin dicoret.\nContoh: `/berestodo 1`", parse_mode="Markdown")
+        return
+    
+    target_id_str = context.args[0].replace("#", "")
+    if not target_id_str.isdigit():
+        await update.message.reply_text("⚠️ ID to-do harus berupa angka. Contoh: `/berestodo 1`", parse_mode="Markdown")
+        return
+
+    target_id = int(target_id_str)
+    todo_list = load_todo_data()
+
+    item_ditemukan = None
+    sisa_todo = []
+    for item in todo_list:
+        if item.get("id") == target_id:
+            item_ditemukan = item
+        else:
+            sisa_todo.append(item)
+
+    if not item_ditemukan:
+        await update.message.reply_text(f"❌ To-do dengan ID `#{target_id}` tidak ditemukan.", parse_mode="Markdown")
+        return
+
+    save_todo_data(sisa_todo)
+    pesan = (
+        f"🎉 **Bagus! To-Do Selesai & Dicoret:**\n\n"
+        f"✅ *{item_ditemukan.get('kegiatan')}*\n\n"
+        "Item telah dihapus dari daftar to-do aktif."        
+    )
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
 async def cekpengingat_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handles untuk perintah /cekpengingat (melihat pesan briefing secara instan)"""
     pesan = generate_daily_briefing()
@@ -387,6 +504,9 @@ def build_app(token: str):
     app.add_handler(CommandHandler("tambahtugas", tambahtugas_command))
     app.add_handler(CommandHandler("listtugas", listtugas_command))
     app.add_handler(CommandHandler("selesai", selesai_command))
+    app.add_handler(CommandHandler("todo", todo_command))
+    app.add_handler(CommandHandler("listtodo", listtodo_command))
+    app.add_handler(CommandHandler("berestodo", berestodo_command))
     app.add_handler(CommandHandler("cekpengingat", cekpengingat_command))
     return app
 

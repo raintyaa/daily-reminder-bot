@@ -5,6 +5,8 @@ from bot import (
     format_jadwal_hari,
     load_tugas_data,
     save_tugas_data,
+    load_todo_data,
+    save_todo_data,
     is_valid_deadline,
     generate_daily_briefing,
     load_subscribers,
@@ -22,12 +24,13 @@ def test_handlers():
     
     expected_commands = {
         "start", "help", "jadwal", "rutinitas",
-        "tambahtugas", "listtugas", "selesai", "cekpengingat"
+        "tambahtugas", "listtugas", "selesai",
+        "todo", "listtodo", "berestodo", "cekpengingat"
     }
     for cmd in expected_commands:
         assert cmd in flat_commands, f"Handler /{cmd} tidak terdaftar!"
     
-    print("[OK] Semua handler (/start, /help, /jadwal, /rutinitas, /tambahtugas, /listtugas, /selesai, /cekpengingat) terdaftar.")
+    print("[OK] Semua 11 handler terdaftar dengan benar.")
 
 def test_jadwal_data():
     """Memverifikasi data jadwal dan rutinitas dapat dimuat dengan baik"""
@@ -55,7 +58,22 @@ def test_tugas_crud():
     loaded = load_tugas_data()
     assert len(loaded) == 1, "Jumlah tugas yang dimuat tidak sesuai!"
     assert loaded[0]["nama_tugas"] == "Tugas Uji Coba", "Data tugas tidak cocok!"
-    print("[OK] Logika penyimpanan tugas (tugas.json) terverifikasi.")
+    print("[OK] Logika tugas (tugas.json) terverifikasi.")
+
+def test_todo_crud():
+    """Memverifikasi operasi simpan dan baca to-do spontan"""
+    sample_todo = [
+        {
+            "id": 1,
+            "kegiatan": "Ambil laundry sore ini",
+            "dibuat_pada": "2026-08-17 07:00:00"
+        }
+    ]
+    assert save_todo_data(sample_todo), "Gagal menyimpan sample to-do!"
+    loaded = load_todo_data()
+    assert len(loaded) == 1, "Jumlah to-do yang dimuat tidak sesuai!"
+    assert loaded[0]["kegiatan"] == "Ambil laundry sore ini", "Data to-do tidak cocok!"
+    print("[OK] Logika to-do spontan (todo.json) terverifikasi.")
 
 def test_deadline_format_validation():
     """Memastikan tanggal deadline harus menggunakan format dd-mm-yyyy"""
@@ -83,7 +101,8 @@ if __name__ == "__main__":
     test_handlers()
     test_jadwal_data()
     test_tugas_crud()
+    test_todo_crud()
     test_deadline_format_validation()
     test_daily_briefing()
     test_subscribers()
-    print("[OK] Seluruh self-check Hari 4 berhasil!")
+    print("[OK] Seluruh self-check Hari 5 berhasil!")
