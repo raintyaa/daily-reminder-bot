@@ -206,6 +206,25 @@ def generate_daily_briefing() -> str:
         for item in todo_list:
             pesan += f"• 🆔 `#{item.get('id')}`: {item.get('kegiatan')}\n"
 
+    agenda_list = load_agenda_data()
+    agenda_aktif = []
+    for a in agenda_list:
+        tanggal_str = a.get("tanggal", "")
+        try:
+            tanggal_dt = datetime.strptime(tanggal_str, "%d-%m-%Y").date()
+            selisih_hari = (tanggal_dt - today_dt).days
+            if selisih_hari == 0:
+                agenda_aktif.append(f"• **{a.get('nama_acara')}** (🚨 *HARI INI!*)\n  📍 {a.get('keterangan', '-')}")
+            elif selisih_hari == 1:
+                agenda_aktif.append(f"• **{a.get('nama_acara')}** (⚠️ *BESOK!*)\n  📍 {a.get('keterangan', '-')}")
+            elif 1 < selisih_hari <= 3:
+                agenda_aktif.append(f"• **{a.get('nama_acara')}** (🗓️ *{selisih_hari} hari lagi*)\n  📍 {a.get('keterangan', '-')}")
+        except ValueError:
+            continue
+
+    if agenda_aktif:
+        pesan += "\n----------------------------\n"
+        pesan += "\n📅 **Agenda Terdekat:**\n" + "\n".join(agenda_aktif) + "\n"
 
     return pesan
 
@@ -242,7 +261,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "📌 **To-Do Spontan (Non-Kuliah):**\n"
         "• `/todo [Kegiatan]` - Catat to-do cepat\n"
         "• `/listtodo` - Daftar to-do aktif\n"
-        "• `/berestodo [ID]` - Coret to-do selesai\n\n"        
+        "• `/berestodo [ID]` - Coret to-do selesai\n\n"  
+        "📅 **Agenda & Event Khusus:**\n"
+        "• `/tambahagenda [Acara] | [Tanggal] | [Jam/Lokasi]` - Catat agenda baru\n"
+        "• `/agenda` - Daftar agenda mendatang\n"
+        "• `/hapusagenda [ID]` - Hapus agenda selesai\n\n"      
         "⏰ **Pengingat Otomatis:**\n"
         "• `/cekpengingat` - Cek ringkasan briefing hari ini sekarang\n"
         "• *Bot juga otomatis mengirim briefing setiap jam 07:00 pagi!*\n\n"
@@ -495,7 +518,7 @@ async def tambahagenda_command(update: Update, context: ContextTypes.DEFAULT_TYP
     input_teks = " ".join(context.args) if context.args else ""
 
     if not input_teks or "|" not in input_teks:
-        pesan+ (
+        pesan = (
             "⚠️ **Format Salah!** Gunakan pemisah tanda `|` (garis tegak).\n\n"
             "📌 **Format:**\n"
             "`/tambahagenda [Nama Acara] | [DD-MM-YYYY] | [Jam / Lokasi]`\n\n"
@@ -521,7 +544,7 @@ async def tambahagenda_command(update: Update, context: ContextTypes.DEFAULT_TYP
         return
 
     agenda_list = load_agenda_data()
-    next_id = max([a.get("id", 0) for a in agenda_list], deafult=0) + 1
+    next_id = max([a.get("id", 0) for a in agenda_list], default=0) + 1
 
     agenda_baru = {
         "id": next_id,
@@ -593,7 +616,7 @@ async def hapusagenda_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         return
 
     target_id = int(target_id_str)
-    agenda_list = load_agenda_data
+    agenda_list = load_agenda_data()
 
     agenda_ditemukan = None
     sisa_agenda = []
@@ -699,6 +722,9 @@ def build_app(token: str):
     app.add_handler(CommandHandler("todo", todo_command))
     app.add_handler(CommandHandler("listtodo", listtodo_command))
     app.add_handler(CommandHandler("berestodo", berestodo_command))
+    app.add_handler(CommandHandler("tambahagenda", tambahagenda_command))
+    app.add_handler(CommandHandler("agenda", agenda_command))
+    app.add_handler(CommandHandler("hapusagenda", hapusagenda_command))
     app.add_handler(CommandHandler("cekpengingat", cekpengingat_command))
     return app
 
