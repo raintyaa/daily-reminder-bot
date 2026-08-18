@@ -15,6 +15,7 @@ JADWAL_FILE = os.path.join(os.path.dirname(__file__), "jadwal.json")
 TUGAS_FILE = os.path.join(os.path.dirname(__file__), "tugas.json")
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 TODO_FILE = os.path.join(os.path.dirname(__file__), "todo.json")
+AGENDA_FILE = os.path.join(os.path.dirname(__file__), "agenda.json")
 
 HARI_INDONESIA = {
     0: "senin",
@@ -77,6 +78,27 @@ def save_todo_data(todo_list: list) -> bool:
         return True
     except Exception as e:
         print(f"Error menyimpan todo.json: {e}")
+        return False
+
+def load_agenda_data() -> list:
+    """Membaca daftar agenda dari agenda.json"""
+    if not os.path.exists(AGENDA_FILE):
+        return []
+    try:
+        with open(AGENDA_FILE, "r", encoding="utf-8") as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Error membaca agenda.json: {e}")
+        return []
+
+def save_agenda_data(agenda_list: list) -> bool:
+    """Menyimpan daftar agenda ke agenda.json"""
+    try:
+        with open(AGENDA_FILE, "w", encoding="utf-8") as f:
+            json.dump(agenda_list, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error menyimpan agenda.json: {e}")
         return False
 
 def load_subscribers() -> list:

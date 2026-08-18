@@ -17,5 +17,6 @@ data.json
 tugas.json
 config.json
 todo.json
+agenda.json
 *.sqlite3
 *.db
