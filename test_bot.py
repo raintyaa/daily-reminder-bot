@@ -132,4 +132,4 @@ if __name__ == "__main__":
     test_deadline_format_validation()
     test_daily_briefing()
     test_subscribers()
-    print("[OK] Seluruh self-check Hari 6 berhasil!")
+    print("[OK] Seluruh self-check Hari 7 berhasil!")

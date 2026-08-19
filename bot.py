@@ -649,6 +649,7 @@ async def auto_reminder_loop(app) -> None:
     rutinitas_terkirim = set()
     kuliah_terkirim = set()
     tugas_malam_terakhir = None
+    agenda_terkirim = set()
 
     while True:
         try:
@@ -784,6 +785,41 @@ async def auto_reminder_loop(app) -> None:
                             print(f"[Scheduler] ❌ Gagal kirim evaluasi tugas malam: {e}")
 
                 tugas_malam_terakhir = today_date            
+
+            agenda_list = load_agenda_data()
+            for a in agenda_list:
+                tanggal_str = a.get("tanggal", "")
+                keterangan_str = a.get("keterangan", "")
+
+                if tanggal_str == today_date.strftime("%d-%m-%Y"):
+                    import re
+                    match_jam = re.search(r"\b(\d{1,2}[:.]\d{2})\b", keterangan_str)
+                    if match_jam:
+                        jam_agenda = match_jam.group(1).replace(".", ":")
+                        if len(jam_agenda.split(":")[0]) == 1:
+                            jam_agenda = "0" + jam_agenda
+
+                        key_agenda = f"{today_date}_agenda_{a.get('id')}_{jam_agenda}"
+                        if current_time_str == jam_agenda and key_agenda not in agenda_terkirim:
+                            subscribers = load_subscribers()
+                            print(f"[Scheduler] Pukul {current_time_str}: Waktu agenda cocok! Mengirim '{a.get('nama_acara')}' ke: {subscribers}")
+                            if subscribers:
+                                pesan_agenda = (
+                                    f"🔔 **PENGINGAT AGENDA HARI INI ({jam_agenda})** 🔔\n\n"
+                                    f"📌 **Acara:** {a.get('nama_acara')}\n"
+                                    f"📍 **Info/Lokasi:** {keterangan_str}\n\n"
+                                    "Waktunya menghadiri kegiatan ini! Semangat! ✨"
+                                )
+                                for chat_id in subscribers:
+                                    try:
+                                        await app.bot.send_message(chat_id=chat_id, text=pesan_agenda, parse_mode="Markdown")
+                                        print(f"[Scheduler] ✅ Berhasil kirim alarm agenda ke {chat_id}")
+                                    except Exception as e:
+                                        print(f"[Scheduler] ❌ Gagal kirim alarm agenda: {e}")
+                            agenda_terkirim.add(key_agenda)
+
+            if len(agenda_terkirim) > 30:
+                agenda_terkirim.clear()
 
         except Exception as err:
             print(f"[Scheduler Error] {err}")
