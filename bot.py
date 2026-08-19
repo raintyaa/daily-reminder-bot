@@ -647,6 +647,7 @@ async def auto_reminder_loop(app) -> None:
     """Loop latar belakang yang otomatis mengirim briefing setiap pagi jam 07:00 & alarm pengingat tepat pada jam rutinitas"""
     briefing_terakhir = None
     rutinitas_terkirim = set()
+    kuliah_terkirim = set()
 
     while True:
         try:
@@ -697,6 +698,41 @@ async def auto_reminder_loop(app) -> None:
 
             if len(rutinitas_terkirim) > 30:
                 rutinitas_terkirim.clear()
+
+            hari_index = now.weekday()
+            hari_ini = HARI_INDONESIA.get(hari_index, "senin")
+            jadwal_hari_ini = jadwal_data.get("jadwal", {}).get(hari_ini, [])
+
+            for matkul_item in jadwal_hari_ini:
+                jam_raw = matkul_item.get("jam", "")
+                if "-" in jam_raw:
+                    jam_mulai = jam_raw.split("-")[0].strip().replace(".", ":")
+                    if len(jam_mulai.split(":")[0]) == 1:
+                        jam_mulai = "0" + jam_mulai
+
+                    key_kuliah = f"{today_date}_kuliah_{jam_mulai}_{matkul_item.get('matkul')}"
+                    if current_time_str == jam_mulai and key_kuliah not in kuliah_terkirim:
+                        subscribers = load_subscribers()
+                        print(f"[Scheduler] Pukul {current_time_str}: Waktu kuliah cocok! Mengirim '{matkul_item.get('matkul')}' ke: {subscribers}")
+                        if subscribers:
+                            pesan_kuliah = (
+                                f"🔔 **PENGINGAT KULIAH ({jam_mulai})** 🔔\n\n"
+                                f"📚 **Mata Kuliah:** {matkul_item.get('matkul')}\n"
+                                f"🏫 **Kelas:** {matkul_item.get('kelas', '-')}\n"
+                                f"📍 **Ruang:** {matkul_item.get('ruang', '-')}\n"
+                                f"⏰ **Waktu:** {jam_raw}\n\n"
+                                "Waktunya bersiap-siap menuju kelas! Semangat! 🚀"
+                            )
+                            for chat_id in subscribers:
+                                try:
+                                    await app.bot.send_message(chat_id=chat_id, text=pesan_kuliah, parse_mode="Markdown")
+                                    print(f"[Scheduler] ✅ Berhasil kirim pengingat kuliah ke {chat_id}")
+                                except Exception as e:
+                                    print(f"[Scheduler] ❌ Gagal kirim pengingat kuliah ke {chat_id}: {e}")
+                        kuliah_terkirim.add(key_kuliah)
+
+            if len(kuliah_terkirim) > 30:
+                kuliah_terkirim.clear()
 
         except Exception as err:
             print(f"[Scheduler Error] {err}")
