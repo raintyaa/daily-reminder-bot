@@ -648,6 +648,7 @@ async def auto_reminder_loop(app) -> None:
     briefing_terakhir = None
     rutinitas_terkirim = set()
     kuliah_terkirim = set()
+    tugas_malam_terakhir = None
 
     while True:
         try:
@@ -733,6 +734,56 @@ async def auto_reminder_loop(app) -> None:
 
             if len(kuliah_terkirim) > 30:
                 kuliah_terkirim.clear()
+
+            if now.hour == 20 and now.minute == 0 and tugas_malam_terakhir != today_date:
+                tugas_list = load_tugas_data()
+                tugas_aktif = []
+                for t in tugas_list:
+                    deadline_str = t.get("deadline", "")
+                    try:
+                        deadline_dt = datetime.strptime(deadline_str, "%d-%m-%Y").date()
+                        selisih = (deadline_dt - today_date).days
+                        if selisih < 0:
+                            status = "🔴 *Lewat deadline!*"
+                        elif selisih == 0:
+                            status = "🚨 *DEADLINE HARI INI!*"
+                        elif selisih == 1:
+                            status = "⚠️ *BESOK!*"
+                        elif selisih <= 3:
+                            status = f"⏳ *{selisih} hari lagi*"
+                        elif selisih <= 7:
+                            status = f"🗓️ *{selisih} hari lagi*"
+                        else:
+                            status = f"📅 *{selisih} hari lagi*"
+
+                        tugas_aktif.append({
+                            "selisih": selisih,
+                            "teks": f"• 📝 **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str} ({status})"
+                        })
+                    except ValueError:
+                        continue
+
+                # Urutkan tugas dari deadline terdekat
+                tugas_aktif.sort(key=lambda x: x["selisih"])
+
+                if tugas_aktif:
+                    subscribers = load_subscribers()
+                    daftar_teks = "\n\n".join([item["teks"] for item in tugas_aktif])
+                    pesan_malam = (
+                        "🌙 **EVALUASI & PENGINGAT TUGAS MALAM** 🌙\n\n"
+                        "Berikut daftar tugas aktifmu yang perlu dicicil/diselesaikan:\n\n"
+                        f"{daftar_teks}\n\n"
+                        "💡 *Tips: Cicil tugasmu malam ini agar tidak menumpuk!*\n"
+                        "Ketik `/selesai [ID]` jika tugas sudah beres."
+                    )
+                    for chat_id in subscribers:
+                        try:
+                            await app.bot.send_message(chat_id=chat_id, text=pesan_malam, parse_mode="Markdown")
+                            print(f"[Scheduler] ✅ Berhasil kirim evaluasi tugas malam ke {chat_id}")
+                        except Exception as e:
+                            print(f"[Scheduler] ❌ Gagal kirim evaluasi tugas malam: {e}")
+
+                tugas_malam_terakhir = today_date            
 
         except Exception as err:
             print(f"[Scheduler Error] {err}")
