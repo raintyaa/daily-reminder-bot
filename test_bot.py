@@ -25,7 +25,7 @@ def test_handlers():
     flat_commands = {cmd for sublist in commands for cmd in sublist}
     
     expected_commands = {
-        "start", "help", "jadwal", "rutinitas",
+        "start", "help", "jadwal", "rutinitas", "beresrutinitas",
         "tambahtugas", "listtugas", "selesai",
         "todo", "listtodo", "berestodo",
         "tambahagenda", "agenda", "hapusagenda",
@@ -34,7 +34,7 @@ def test_handlers():
     for cmd in expected_commands:
         assert cmd in flat_commands, f"Handler /{cmd} tidak terdaftar!"
     
-    print("[OK] Semua 14 handler terdaftar dengan benar.")
+    print("[OK] Semua 15 handler terdaftar dengan benar.")
 
 def test_jadwal_data():
     """Memverifikasi data jadwal dan rutinitas dapat dimuat dengan baik"""

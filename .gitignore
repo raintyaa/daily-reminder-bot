@@ -18,5 +18,6 @@ tugas.json
 config.json
 todo.json
 agenda.json
+rutinitas_selesai.json
 *.sqlite3
 *.db

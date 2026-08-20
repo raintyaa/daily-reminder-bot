@@ -16,6 +16,7 @@ TUGAS_FILE = os.path.join(os.path.dirname(__file__), "tugas.json")
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.json")
 TODO_FILE = os.path.join(os.path.dirname(__file__), "todo.json")
 AGENDA_FILE = os.path.join(os.path.dirname(__file__), "agenda.json")
+RUTINITAS_SELESAI_FILE = os.path.join(os.path.dirname(__file__), "rutinitas_selesai.json")
 
 HARI_INDONESIA = {
     0: "senin",
@@ -99,6 +100,32 @@ def save_agenda_data(agenda_list: list) -> bool:
         return True
     except Exception as e:
         print(f"Error menyimpan agenda.json: {e}")
+        return False
+
+def load_rutinitas_selesai_data() -> list:
+    """Membaca daftar ID rutinitas yang selesai hari ini (reset jika berganti hari)"""
+    today_str = datetime.now().strftime("%d-%m-%Y")
+    if not os.path.exists(RUTINITAS_SELESAI_FILE):
+        return []
+    try:
+        with open(RUTINITAS_SELESAI_FILE, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if data.get("tanggal") == today_str:
+                return data.get("selesai", [])
+            else:
+                return []
+    except Exception:
+        return []
+
+def save_rutinitas_selesai_data(selesai_list: list) -> bool:
+    """Menyimpan ID rutinitas yang selesai hari ini ke rutinitas_selesai.json"""
+    today_str = datetime.now().strftime("%d-%m-%Y")
+    try:
+        with open(RUTINITAS_SELESAI_FILE, "w", encoding="utf-8") as f:
+            json.dump({"tanggal": today_str, "selesai": selesai_list}, f, indent=2)
+        return True
+    except Exception as e:
+        print(f"Error menyimpan rutinitas_selesai.json: {e}")
         return False
 
 def load_subscribers() -> list:
@@ -312,14 +339,43 @@ async def rutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     """Handler untuk perintah /rutinitas"""
     data = load_jadwal_data()
     rutinitas = data.get("rutinitas", [])
-
+    selesai_ids = load_rutinitas_selesai_data()
     if not rutinitas:
         pesan = "📝 Belum ada daftar rutinitas yang tersimpan."
     else:
         pesan = "⏰ **Daftar Rutinitas Harian**:\n\n"
         for i, item in enumerate(rutinitas, 1):
-            pesan += f"{i}. {item}\n"
+            status = " *(✅ Selesai Hari Ini)*" if i in selesai_ids else ""
+            pesan += f"{i}. {item}{status}\n"
+        pesan += "\n💡 *Gunakan `/beresrutinitas [Nomor]` untuk mencoret rutinitas yang selesai hari ini.*"
 
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
+async def beresrutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk perintah /beresrutinitas [Nomor]"""
+    if not context.args:
+        await update.message.reply_text("⚠️ Masukkan nomor rutinitas yang ingin dicoret.\nContoh: `/beresrutinitas 1`", parse_mode="Markdown")
+        return
+    target_str = context.args[0].replace("#", "")
+    if not target_str.isdigit():
+        await update.message.reply_text("⚠️ Nomor rutinitas harus berupa angka. Contoh: `/beresrutinitas 1`", parse_mode="Markdown")
+        return
+    target_no = int(target_str)
+    data = load_jadwal_data()
+    rutinitas = data.get("rutinitas", [])
+    if target_no < 1 or target_no > len(rutinitas):
+        await update.message.reply_text(f"❌ Rutinitas nomor `{target_no}` tidak ditemukan. Ketik `/rutinitas` untuk melihat daftar nomor.", parse_mode="Markdown")
+        return
+    selesai_list = load_rutinitas_selesai_data()
+    if target_no not in selesai_list:
+        selesai_list.append(target_no)
+        save_rutinitas_selesai_data(selesai_list)
+    item_nama = rutinitas[target_no - 1]
+    pesan = (
+        f"🎉 **Bagus! Rutinitas Beres Hari Ini:**\n\n"
+        f"✅ *{item_nama}*\n\n"
+        "Status ini akan otomatis di-reset besok pagi."
+    )
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -793,37 +849,32 @@ async def auto_reminder_loop(app) -> None:
 
                 tugas_malam_terakhir = today_date            
 
-            agenda_list = load_agenda_data()
-            for a in agenda_list:
-                tanggal_str = a.get("tanggal", "")
-                keterangan_str = a.get("keterangan", "")
+            # 5. Alarm Pengingat Agenda Acara Hari H (Jam 05:00 Pagi)
+            if now.hour == 5 and now.minute == 0:
+                agenda_list = load_agenda_data()
+                for a in agenda_list:
+                    tanggal_str = a.get("tanggal", "")
+                    keterangan_str = a.get("keterangan", "")
 
-                if tanggal_str == today_date.strftime("%d-%m-%Y"):
-                    import re
-                    match_jam = re.search(r"\b(\d{1,2}[:.]\d{2})\b", keterangan_str)
-                    if match_jam:
-                        jam_agenda = match_jam.group(1).replace(".", ":")
-                        if len(jam_agenda.split(":")[0]) == 1:
-                            jam_agenda = "0" + jam_agenda
-
-                        key_agenda = f"{today_date}_agenda_{a.get('id')}_{jam_agenda}"
-                        if current_time_str == jam_agenda and key_agenda not in agenda_terkirim:
+                    if tanggal_str == today_date.strftime("%d-%m-%Y"):
+                        key_agenda = f"{today_date}_agenda_{a.get('id')}"
+                        if key_agenda not in agenda_terkirim:
                             subscribers = load_subscribers()
-                            print(f"[Scheduler] Pukul {current_time_str}: Waktu agenda cocok! Mengirim '{a.get('nama_acara')}' ke: {subscribers}")
+                            print(f"[Scheduler] Pukul 05:00: Mengirim pengingat agenda hari H '{a.get('nama_acara')}'...")
                             if subscribers:
                                 pesan_agenda = (
-                                    f"🔔 **PENGINGAT AGENDA HARI INI ({jam_agenda})** 🔔\n\n"
+                                    f"🔔 **PENGINGAT AGENDA HARI INI (05:00 Pagi)** 🔔\n\n"
                                     f"📌 **Acara:** {a.get('nama_acara')}\n"
                                     f"📍 **Info/Lokasi:** {keterangan_str}\n\n"
-                                    "Waktunya menghadiri kegiatan ini! Semangat! ✨"
+                                    "Jangan lupa hari ini kamu ada agenda tersebut! Semangat! ✨"
                                 )
                                 for chat_id in subscribers:
                                     try:
                                         await app.bot.send_message(chat_id=chat_id, text=pesan_agenda, parse_mode="Markdown")
-                                        print(f"[Scheduler] ✅ Berhasil kirim alarm agenda ke {chat_id}")
+                                        print(f"[Scheduler] ✅ Berhasil kirim alarm agenda hari H ke {chat_id}")
                                     except Exception as e:
-                                        print(f"[Scheduler] ❌ Gagal kirim alarm agenda: {e}")
-                            agenda_terkirim.add(key_agenda)
+                                        print(f"[Scheduler] ❌ Gagal kirim alarm agenda hari H: {e}")
+                                agenda_terkirim.add(key_agenda)
 
             if len(agenda_terkirim) > 30:
                 agenda_terkirim.clear()
@@ -855,6 +906,7 @@ def build_app(token: str):
     app.add_handler(CommandHandler("tambahagenda", tambahagenda_command))
     app.add_handler(CommandHandler("agenda", agenda_command))
     app.add_handler(CommandHandler("hapusagenda", hapusagenda_command))
+    app.add_handler(CommandHandler("beresrutinitas", beresrutinitas_command))
     app.add_handler(CommandHandler("cekpengingat", cekpengingat_command))
     return app
 
