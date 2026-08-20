@@ -207,24 +207,26 @@ def generate_daily_briefing() -> str:
             pesan += f"• 🆔 `#{item.get('id')}`: {item.get('kegiatan')}\n"
 
     agenda_list = load_agenda_data()
-    agenda_aktif = []
-    for a in agenda_list:
-        tanggal_str = a.get("tanggal", "")
-        try:
-            tanggal_dt = datetime.strptime(tanggal_str, "%d-%m-%Y").date()
-            selisih_hari = (tanggal_dt - today_dt).days
-            if selisih_hari == 0:
-                agenda_aktif.append(f"• **{a.get('nama_acara')}** (🚨 *HARI INI!*)\n  📍 {a.get('keterangan', '-')}")
-            elif selisih_hari == 1:
-                agenda_aktif.append(f"• **{a.get('nama_acara')}** (⚠️ *BESOK!*)\n  📍 {a.get('keterangan', '-')}")
-            elif 1 < selisih_hari <= 3:
-                agenda_aktif.append(f"• **{a.get('nama_acara')}** (🗓️ *{selisih_hari} hari lagi*)\n  📍 {a.get('keterangan', '-')}")
-        except ValueError:
-            continue
-
-    if agenda_aktif:
+    if agenda_list:
         pesan += "\n----------------------------\n"
-        pesan += "\n📅 **Agenda Terdekat:**\n" + "\n".join(agenda_aktif) + "\n"
+        pesan += "\n📅 **Daftar Seluruh Agenda Kegiatan:**\n"
+        for a in agenda_list:
+            tanggal_str = a.get("tanggal", "")
+            status = ""
+            try:
+                tanggal_dt = datetime.strptime(tanggal_str, "%d-%m-%Y").date()
+                selisih_hari = (tanggal_dt - today_dt).days
+                if selisih_hari < 0:
+                    status = "*(🔴 Sudah Lewat)*"
+                elif selisih_hari == 0:
+                    status = "*(🚨 HARI INI!)*"
+                elif selisih_hari == 1:
+                    status = "*(⚠️ BESOK!)*"
+                else:
+                    status = f"*(🗓️ {selisih_hari} hari lagi)*"
+            except ValueError:
+                pass
+            pesan += f"• **{a.get('nama_acara')}** {status}\n  📅 Tanggal: {tanggal_str} | 📍 Info: {a.get('keterangan', '-')}\n"
 
     return pesan
 
@@ -657,7 +659,7 @@ async def auto_reminder_loop(app) -> None:
             today_date = now.date()
             current_time_str = now.strftime("%H:%M")
 
-            if now.hour == 7 and now.minute == 0 and briefing_terakhir != today_date:
+            if now.hour == 5 and now.minute == 0 and briefing_terakhir != today_date:
                 subscribers = load_subscribers()
                 if subscribers:
                     pesan = generate_daily_briefing()
@@ -764,7 +766,6 @@ async def auto_reminder_loop(app) -> None:
                     except ValueError:
                         continue
 
-                # Urutkan tugas dari deadline terdekat
                 tugas_aktif.sort(key=lambda x: x["selisih"])
 
                 if tugas_aktif:
