@@ -2,7 +2,7 @@ import os
 import sys
 import asyncio
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -713,19 +713,25 @@ async def auto_reminder_loop(app) -> None:
                     jam_mulai = jam_raw.split("-")[0].strip().replace(".", ":")
                     if len(jam_mulai.split(":")[0]) == 1:
                         jam_mulai = "0" + jam_mulai
-
+                    # Hitung 1 jam sebelum jam mulai (misal '07:30' -> '06:30')
+                    try:
+                        t_mulai = datetime.strptime(jam_mulai, "%H:%M")
+                        t_pengingat = (datetime.combine(today_date, t_mulai.time()) - timedelta(hours=1)).time()
+                        jam_pengingat = t_pengingat.strftime("%H:%M")
+                    except Exception:
+                        jam_pengingat = jam_mulai
                     key_kuliah = f"{today_date}_kuliah_{jam_mulai}_{matkul_item.get('matkul')}"
-                    if current_time_str == jam_mulai and key_kuliah not in kuliah_terkirim:
+                    if current_time_str == jam_pengingat and key_kuliah not in kuliah_terkirim:
                         subscribers = load_subscribers()
-                        print(f"[Scheduler] Pukul {current_time_str}: Waktu kuliah cocok! Mengirim '{matkul_item.get('matkul')}' ke: {subscribers}")
+                        print(f"[Scheduler] Pukul {current_time_str}: Waktu pengingat kuliah cocok (1 jam sebelum {jam_mulai})! Mengirim '{matkul_item.get('matkul')}'...")
                         if subscribers:
                             pesan_kuliah = (
-                                f"🔔 **PENGINGAT KULIAH ({jam_mulai})** 🔔\n\n"
+                                f"🔔 **PENGINGAT KULIAH (1 Jam Lagi - {jam_mulai})** 🔔\n\n"
                                 f"📚 **Mata Kuliah:** {matkul_item.get('matkul')}\n"
                                 f"🏫 **Kelas:** {matkul_item.get('kelas', '-')}\n"
                                 f"📍 **Ruang:** {matkul_item.get('ruang', '-')}\n"
-                                f"⏰ **Waktu:** {jam_raw}\n\n"
-                                "Waktunya bersiap-siap menuju kelas! Semangat! 🚀"
+                                f"⏰ **Waktu Kuliah:** {jam_raw}\n\n"
+                                "Waktunya bersiap-siap menuju kampus! Semangat! 🚀"
                             )
                             for chat_id in subscribers:
                                 try:
