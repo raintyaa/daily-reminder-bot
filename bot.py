@@ -4,7 +4,7 @@ import asyncio
 import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from dotenv import load_dotenv
 from telegram import Update
 from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
@@ -713,7 +713,8 @@ async def auto_reminder_loop(app) -> None:
 
     while True:
         try:
-            now = datetime.now()
+            WIB = timezone(timedelta(hours=7))
+            now = datetime.now(WIB)
             today_date = now.date()
             current_time_str = now.strftime("%H:%M")
 
