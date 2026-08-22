@@ -2,6 +2,8 @@ import os
 import sys
 import asyncio
 import json
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from telegram import Update
@@ -910,11 +912,28 @@ def build_app(token: str):
     app.add_handler(CommandHandler("cekpengingat", cekpengingat_command))
     return app
 
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.end_headers()
+        self.wfile.write(b"Bot Qrem is running 24/7")
+
+    def log_message(self, format, *args):
+        pass
+
+def run_health_check_server():
+    """Menjalankan server web mini agar bot bisa di-host gratis di Web Service Render"""
+    port = int(os.getenv("PORT", 8080))
+    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+    server.serve_forever()
+
 def main() -> None:
     if not TOKEN or TOKEN == "your_telegram_bot_token_here":
         print("\n[PERINGATAN] TELEGRAM_BOT_TOKEN belum diisi di file .env!")
         print("Silakan buka file .env dan ganti 'your_telegram_bot_token_here' dengan token dari @BotFather.\n")
         sys.exit(1)
+
+    threading.Thread(target=run_health_check_server, daemon=True).start()
 
     print("Bot sedang berjalan... Tekan Ctrl+C untuk menghentikan.")
     app = build_app(TOKEN)
