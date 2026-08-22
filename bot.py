@@ -922,10 +922,13 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         pass
 
 def run_health_check_server():
-    """Menjalankan server web mini agar bot bisa di-host gratis di Web Service Render"""
-    port = int(os.getenv("PORT", 8080))
-    server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
-    server.serve_forever()
+    """Menjalankan server web mini jika dibutuhkan (misal di Render)"""
+    try:
+        port = int(os.getenv("PORT", 8080))
+        server = HTTPServer(("0.0.0.0", port), HealthCheckHandler)
+        server.serve_forever()
+    except Exception as e:
+        print(f"[HealthCheck] Server HTTP dilewati: {e}")
 
 def main() -> None:
     if not TOKEN or TOKEN == "your_telegram_bot_token_here":
