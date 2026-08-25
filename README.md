@@ -5,7 +5,7 @@
 ![Deployment](https://img.shields.io/badge/deployment-Cloud%2024%2F7-brightgreen.svg)
 ![Status](https://img.shields.io/badge/status-Active%20%26%20Tested-success.svg)
 
-**Qrem** adalah Bot Telegram cerdas berbasis Python yang dirancang khusus untuk membantu mahasiswa mengelola jadwal kuliah, deadline tugas, to-do spontan, rutinitas harian, dan agenda kegiatan khusus dengan sistem pengingat otomatis *real-time* 24/7.
+**Qrem** adalah Bot Telegram cerdas berbasis Python yang dirancang khusus untuk membantu mahasiswa mengelola jadwal kuliah, deadline tugas, to-do spontan, rutinitas harian, dan agenda kegiatan khusus dengan sistem pengingat otomatis. *real-time* 24/7.
 
 ---
 
