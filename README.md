@@ -2,14 +2,14 @@
 
 ![Python Version](https://img.shields.io/badge/python-3.10%2B-blue.svg)
 ![Library](https://img.shields.io/badge/library-python--telegram--bot%20v22-green.svg)
-![Deployment](https://img.shields.io/badge/deployment-Cloud%2024%2F7-brightgreen.svg)
-![Status](https://img.shields.io/badge/status-Active%20%26%20Tested-success.svg)
+![Deployment](https://img.shields.io/badge/deployment-Railway%20Cloud%2024%2F7-brightgreen.svg)
+![Status](https://img.shields.io/badge/status-Completed%20%26%20Active-success.svg)
 
-**Qrem** adalah Bot Telegram cerdas berbasis Python yang dirancang khusus untuk membantu mahasiswa mengelola jadwal kuliah, deadline tugas, to-do spontan, rutinitas harian, dan agenda kegiatan khusus dengan sistem pengingat otomatis. *real-time* 24/7.
+**Qrem** adalah Bot Telegram cerdas berbasis Python yang dirancang khusus untuk membantu mahasiswa mengelola jadwal kuliah, deadline tugas, to-do spontan, rutinitas harian, dan agenda kegiatan khusus dengan sistem pengingat otomatis *real-time* 24/7.
 
 ---
 
-## 🌟 Fitur Utama & Sistem Notifikasi
+## 🌟 Fitur Utama & Sistem Notifikasi Pintar
 
 * ☀️ **Daily Briefing Pagi (Pukul 05:00 WIB)**: Rangkuman otomatis awal hari yang menggabungkan jadwal kuliah hari ini, status deadline tugas, to-do spontan, dan daftar seluruh agenda kegiatan.
 * 🎓 **Alarm Kuliah (1 Jam Sebelum Kelas)**: Pengingat *real-time* 1 jam sebelum jam mulai kuliah (lengkap dengan nama matkul, kelas, dan ruang kuliah).
@@ -31,8 +31,8 @@ Bot **Qrem** dilengkapi dengan 15 perintah handler interaktif:
 | `/jadwal` | Menampilkan jadwal kuliah hari ini |
 | `/jadwal [hari/semua]` | Menampilkan jadwal kuliah hari tertentu atau sepekan penuh |
 | `/rutinitas` | Menampilkan daftar rutinitas harian & status selesainya |
-| `/beresrutinitas [ID]` | Mencoret rutinitas yang sudah selesai hari ini (reset jam 00:00) |
-| `/tambahtugas [Nama] \| [DD-MM-YYYY] \| [Matkul]` | Menambah tugas kuliah baru dengan validasi deadline |
+| `/beresrutinitas [ID]` | Mencoret rutinitas yang sudah selesai hari ini (reset otomatis jam 00:00) |
+| `/tambahtugas [Nama] \| [DD-MM-YYYY] \| [Matkul]` | Menambah tugas kuliah baru dengan validasi format tanggal |
 | `/listtugas` | Menampilkan daftar tugas kuliah aktif & hitung mundur deadline |
 | `/selesai [ID]` | Menghapus / menyelesaikan tugas kuliah |
 | `/todo [Kegiatan]` | Mencatat to-do spontan baru |
@@ -51,10 +51,11 @@ Bot **Qrem** dilengkapi dengan 15 perintah handler interaktif:
 Daily Reminder Bot/
 ├── .env.example          # Template konfigurasi token bot
 ├── .gitignore            # Daftar file yang diabaikan oleh Git
-├── Procfile              # Konfigurasi deployment server cloud (Process Worker)
+├── Procfile              # Konfigurasi worker deployment cloud (Railway/Render)
 ├── README.md             # Dokumentasi lengkap proyek
-├── bot.py                # Kode utama aplikasi Telegram Bot & Scheduler
+├── bot.py                # Kode utama aplikasi Telegram Bot & Auto-Scheduler
 ├── jadwal.json           # Data jadwal kuliah & rutinitas harian
+├── keep_alive.sh         # Script auto-restart utilitas
 ├── requirements.txt      # Daftar pustaka dependency Python
 ├── test_bot.py           # Standalone assertion test suite (15 handler test)
 └── Documentation/        # Dokumentasi tangkapan layar pengujian & notifikasi
@@ -102,11 +103,28 @@ python bot.py
 
 ---
 
-## ☁️ Deployment 24/7 Cloud
+## ☁️ Deployment 24/7 Cloud (Railway)
 
-Bot ini mendukung deployment 24/7 di berbagai platform cloud server:
+Bot ini telah ter-deploy dan aktif 24/7 di **Railway Cloud Server**:
 * **Procfile**: `worker: python bot.py`
-* **Timezone Locked**: Kodingan dilengkapi pengunci zona waktu **WIB (UTC+7)** menggunakan `timezone(timedelta(hours=7))` sehingga notifikasi berbunyi tepat waktu di server mana pun.
+* **Timezone Locked**: Kodingan dilengkapi pengunci zona waktu **WIB (UTC+7)** menggunakan `timezone(timedelta(hours=7))` sehingga notifikasi berbunyi tepat waktu di server cloud global.
+* **Environment Variable**: `TELEGRAM_BOT_TOKEN` disimpan secara aman melalui *secret variables* Railway.
+
+---
+
+## 🗓️ Milestone & Roadmap Pengerjaan
+
+* [x] **Hari 1**: Setup project, Git repository, arsitektur dasar, handler `/start` & `/help`.
+* [x] **Hari 2**: Sistem Jadwal Kuliah dinamis berbasis `jadwal.json`.
+* [x] **Hari 3**: Manajemen Tugas Kuliah (CRUD `tugas.json`) & hitung mundur deadline.
+* [x] **Hari 4**: Sistem Pengingat Otomatis (*Auto-Reminder Loop*) & pendaftaran subscriber.
+* [x] **Hari 5**: To-Do Spontan (`/todo`, `/listtodo`, `/berestodo`) & alarm rutinitas per jam.
+* [x] **Hari 6**: Agenda & Event Tracker (`/tambahagenda`, `/agenda`, `/hapusagenda`).
+* [x] **Hari 7**: Standalone Self-Check Test Suite (`test_bot.py`) dengan 15 verifikasi handler.
+* [x] **Hari 8**: Smart Real-Time Alarms (Briefing 05:00 WIB, Alarm Kuliah H-1 Jam, Evaluasi Tugas 20:00 WIB, Auto-Reset Rutinitas).
+* [x] **Hari 9**: Konfigurasi `Procfile` & Health-Check Server untuk *production deployment*.
+* [x] **Hari 10**: Toleransi port server & pengunci zona waktu WIB (UTC+7).
+* [x] **Hari 11**: Deployment resmi 24/7 Nonstop di Railway Cloud & Dokumentasi Final.
 
 ---
 
