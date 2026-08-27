@@ -21,3 +21,5 @@ agenda.json
 rutinitas_selesai.json
 *.sqlite3
 *.db
+*.pem
+*.log
