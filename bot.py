@@ -30,6 +30,12 @@ HARI_INDONESIA = {
     6: "minggu",
 }
 
+WIB = timezone(timedelta(hours=7))
+
+def get_now_wib() -> datetime:
+    """Mengembalikan objek datetime saat ini yang terkunci pada zona waktu WIB (UTC+7)."""
+    return datetime.now(WIB)
+
 def load_jadwal_data() -> dict:
     """Membaca data jadwal dan rutinitas dari jadwal.json"""
     if not os.path.exists(JADWAL_FILE):
@@ -106,7 +112,7 @@ def save_agenda_data(agenda_list: list) -> bool:
 
 def load_rutinitas_selesai_data() -> list:
     """Membaca daftar ID rutinitas yang selesai hari ini (reset jika berganti hari)"""
-    today_str = datetime.now().strftime("%d-%m-%Y")
+    today_str = get_now_wib().strftime("%d-%m-%Y")
     if not os.path.exists(RUTINITAS_SELESAI_FILE):
         return []
     try:
@@ -121,7 +127,7 @@ def load_rutinitas_selesai_data() -> list:
 
 def save_rutinitas_selesai_data(selesai_list: list) -> bool:
     """Menyimpan ID rutinitas yang selesai hari ini ke rutinitas_selesai.json"""
-    today_str = datetime.now().strftime("%d-%m-%Y")
+    today_str = get_now_wib().strftime("%d-%m-%Y")
     try:
         with open(RUTINITAS_SELESAI_FILE, "w", encoding="utf-8") as f:
             json.dump({"tanggal": today_str, "selesai": selesai_list}, f, indent=2)
@@ -180,7 +186,7 @@ def format_jadwal_hari(hari: str, list_matkul: list) -> str:
 
 def generate_daily_briefing() -> str:
     """Merangkai pesan briefing harian: jadwal kuliah hari ini & status deadline tugas"""
-    hari_index = datetime.now().weekday()
+    hari_index = get_now_wib().weekday()
     hari_ini = HARI_INDONESIA.get(hari_index, "senin")
 
     jadwal_data = load_jadwal_data()
@@ -199,7 +205,7 @@ def generate_daily_briefing() -> str:
     pesan += "\n----------------------------\n"
 
     tugas_list = load_tugas_data()
-    today_dt = datetime.now().date()
+    today_dt = get_now_wib().date()
     tugas_mendesak = []
 
     for t in tugas_list:
@@ -330,7 +336,7 @@ async def jadwal_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
             )
     else:
         # Default: hari ini
-        hari_index = datetime.now().weekday()
+        hari_index = get_now_wib().weekday()
         hari_ini = HARI_INDONESIA.get(hari_index, "senin")
         list_matkul = jadwal.get(hari_ini, [])
         pesan = f"🔔 *Hari ini: {hari_ini.capitalize()}*\n\n" + format_jadwal_hari(hari_ini, list_matkul)
@@ -419,7 +425,7 @@ async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
         "nama_tugas": nama_tugas,
         "deadline": deadline_str,
         "matkul": matkul,
-        "dibuat_pada": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "dibuat_pada": get_now_wib().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     tugas_list.append(tugas_baru)
@@ -509,7 +515,7 @@ async def todo_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
     item_baru = {
         "id": next_id,
         "kegiatan": kegiatan,
-        "dibuat_pada": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "dibuat_pada": get_now_wib().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     todo_list.append(item_baru)
@@ -611,7 +617,7 @@ async def tambahagenda_command(update: Update, context: ContextTypes.DEFAULT_TYP
         "nama_acara": nama_acara,
         "tanggal": tanggal_str,
         "keterangan": keterangan,
-        "dibuat_pada": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "dibuat_pada": get_now_wib().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     agenda_list.append(agenda_baru)
@@ -636,7 +642,7 @@ async def agenda_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
         await update.message.reply_text("🎉 **Tidak ada agenda khusus!** Jadwalmu bebas dari acara tambahan.", parse_mode="Markdown")
         return
 
-    today_dt = datetime.now().date()
+    today_dt = get_now_wib().date()
     pesan = "📅 **DAFTAR AGENDA & KEGIATAN MENDATANG**:\n\n"
 
     for a in agenda_list:
@@ -713,8 +719,7 @@ async def auto_reminder_loop(app) -> None:
 
     while True:
         try:
-            WIB = timezone(timedelta(hours=7))
-            now = datetime.now(WIB)
+            now = get_now_wib()
             today_date = now.date()
             current_time_str = now.strftime("%H:%M")
 
