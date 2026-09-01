@@ -143,6 +143,36 @@ def test_subscribers():
         json.dump({"subscribers": subs}, f, indent=2)
     print("[OK] Logika pendaftaran chat ID (subscriber) terverifikasi.")
 
+def test_task_reminder_logic():
+    """Memverifikasi logika perhitungan deadline & filter < 6 jam tugas"""
+    from bot import get_task_deadline_dt, should_remind_task
+
+    # 1. Tugas dibuat 1 jam sebelum deadline (Mepet < 6 jam) -> False (tidak diingatkan)
+    tugas_mepet = {
+        "id": 101,
+        "nama_tugas": "Tugas Mepet",
+        "deadline": "10-09-2026",
+        "jam": "15:00",
+        "dibuat_pada": "2026-09-10 14:00:00"
+    }
+    assert should_remind_task(tugas_mepet) is False, "Tugas mepet < 6 jam harusnya diabaikan dari pengingat!"
+
+    # 2. Tugas dibuat 2 hari sebelum deadline (>= 6 jam) -> True (diingatkan)
+    tugas_normal = {
+        "id": 102,
+        "nama_tugas": "Tugas Normal",
+        "deadline": "10-09-2026",
+        "jam": "23:59",
+        "dibuat_pada": "2026-09-08 10:00:00"
+    }
+    assert should_remind_task(tugas_normal) is True, "Tugas normal >= 6 jam harusnya diingatkan!"
+
+    # 3. Verifikasi perhitungan datetime deadline
+    dt = get_task_deadline_dt(tugas_normal)
+    assert dt is not None
+    assert dt.hour == 23 and dt.minute == 59
+    print("[OK] Logika filter pengingat tugas (aturan < 6 jam & datetime) terverifikasi.")
+
 if __name__ == "__main__":
     test_handlers()
     test_jadwal_data()
@@ -150,6 +180,7 @@ if __name__ == "__main__":
     test_todo_crud()
     test_agenda_crud()
     test_deadline_format_validation()
+    test_task_reminder_logic()
     test_daily_briefing()
     test_subscribers()
-    print("[OK] Seluruh self-check Hari 7 berhasil!")
+    print("[OK] Seluruh self-check pengujian berhasil!")

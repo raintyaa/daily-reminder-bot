@@ -13,7 +13,10 @@
 
 * ☀️ **Daily Briefing Pagi (Pukul 05:00 WIB)**: Rangkuman otomatis awal hari yang menggabungkan jadwal kuliah hari ini, status deadline tugas, to-do spontan, dan daftar seluruh agenda kegiatan.
 * 🎓 **Alarm Kuliah (1 Jam Sebelum Kelas)**: Pengingat *real-time* 1 jam sebelum jam mulai kuliah (lengkap dengan nama matkul, kelas, dan ruang kuliah).
-* 🌙 **Evaluasi & Pengingat Tugas Malam (Pukul 20:00 WIB)**: Rangkuman evaluasi seluruh tugas aktif yang perlu dicicil lengkap dengan hitung mundur sisa hari (*countdown*).
+* 📝 **Smart Task Deadline Reminders**:
+  * 🚨 **Hari H Deadline (H-6 Jam)**: Alarm mendesak berbunyi tepat 6 jam sebelum jam batas waktu tugas hari H.
+  * 📋 **Sebelum Hari H (Setiap 6 Jam)**: Pengingat berkala tugas mendatang pada pukul **06:00, 12:00, dan 18:00 WIB**.
+  * 🛡️ **Filter < 6 Jam**: Tugas yang diinput mepet (< 6 jam sebelum deadline) otomatis dikecualikan dari alarm pengingat berulang.
 * ⏰ **Rutinitas Harian & Fitur Coret (`/beresrutinitas`)**: Alarm pengingat kegiatan rutin harian (misal: salat, olahraga, review materi) dengan fitur centang/coret yang **otomatis di-reset setiap pergantian hari (00:00 WIB)**.
 * 📅 **Agenda Kegiatan Khusus & Event Tracker**: Pencatatan acara bertanggal khusus (rapat ormawa, kerja kelompok, webinar) dengan pengingat otomatis pada jam 05:00 pagi di Hari H acara.
 * 📌 **To-Do Spontan (Non-Kuliah)**: Pencatatan cepat untuk urusan pribadi/spontan (`/todo`, `/listtodo`, `/berestodo`).

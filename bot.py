@@ -198,6 +198,39 @@ def is_valid_deadline(deadline: str) -> bool:
         return is_valid_time(time_part)
     return True
 
+def get_task_deadline_dt(t: dict) -> datetime | None:
+    """Mengembalikan objek datetime deadline tugas dalam timezone WIB."""
+    deadline_str = t.get("deadline", "")
+    jam_str = t.get("jam", "-")
+    if not deadline_str or deadline_str == "-":
+        return None
+    try:
+        date_obj = datetime.strptime(deadline_str, "%d-%m-%Y").date()
+        if jam_str and jam_str != "-" and is_valid_time(jam_str):
+            time_clean = normalize_time(jam_str)
+            h, m = map(int, time_clean.split(":"))
+            return datetime(date_obj.year, date_obj.month, date_obj.day, h, m, tzinfo=WIB)
+        else:
+            # Default jika jam tidak ditentukan: akhir hari 23:59
+            return datetime(date_obj.year, date_obj.month, date_obj.day, 23, 59, tzinfo=WIB)
+    except Exception:
+        return None
+
+def should_remind_task(t: dict) -> bool:
+    """Memeriksa apakah rentang waktu pembuatan tugas ke deadline minimal 6 jam."""
+    deadline_dt = get_task_deadline_dt(t)
+    if not deadline_dt:
+        return False
+    dibuat_pada_str = t.get("dibuat_pada")
+    if not dibuat_pada_str:
+        return True
+    try:
+        created_dt = datetime.strptime(dibuat_pada_str, "%Y-%m-%d %H:%M:%S").replace(tzinfo=WIB)
+        selisih = deadline_dt - created_dt
+        return selisih >= timedelta(hours=6)
+    except Exception:
+        return True
+
 
 def format_jadwal_hari(hari: str, list_matkul: list) -> str:
     """Format tampilan jadwal untuk satu hari"""
@@ -765,7 +798,8 @@ async def auto_reminder_loop(app) -> None:
     briefing_terakhir = None
     rutinitas_terkirim = set()
     kuliah_terkirim = set()
-    tugas_malam_terakhir = None
+    tugas_h_terkirim = set()
+    tugas_berkala_terakhir = None
     agenda_terkirim = set()
 
     while True:
@@ -859,56 +893,97 @@ async def auto_reminder_loop(app) -> None:
             if len(kuliah_terkirim) > 30:
                 kuliah_terkirim.clear()
 
-            if now.hour == 20 and now.minute == 0 and tugas_malam_terakhir != today_date:
-                tugas_list = load_tugas_data()
-                tugas_aktif = []
-                for t in tugas_list:
-                    deadline_str = t.get("deadline", "")
-                    try:
-                        deadline_dt = datetime.strptime(deadline_str, "%d-%m-%Y").date()
-                        selisih = (deadline_dt - today_date).days
-                        if selisih < 0:
-                            status = "🔴 *Lewat deadline!*"
-                        elif selisih == 0:
-                            status = "🚨 *DEADLINE HARI INI!*"
-                        elif selisih == 1:
-                            status = "⚠️ *BESOK!*"
-                        elif selisih <= 3:
-                            status = f"⏳ *{selisih} hari lagi*"
-                        elif selisih <= 7:
-                            status = f"🗓️ *{selisih} hari lagi*"
-                        else:
-                            status = f"📅 *{selisih} hari lagi*"
+            # 4. Pengingat Tugas Kuliah:
+            # 4A. Hari H Deadline (Tepat 6 Jam Sebelum Jam Batas Waktu)
+            tugas_list = load_tugas_data()
+            for t in tugas_list:
+                if not should_remind_task(t):
+                    continue
+                deadline_dt = get_task_deadline_dt(t)
+                if not deadline_dt:
+                    continue
 
-                        jam_str = t.get("jam", "-")
-                        jam_info = f" (Pukul {jam_str} WIB)" if jam_str and jam_str != "-" else ""
-                        tugas_aktif.append({
-                            "selisih": selisih,
-                            "teks": f"• 📝 **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str}{jam_info} ({status})"
-                        })
-                    except ValueError:
-                        continue
+                # Jika hari ini adalah Hari H deadline tugas tersebut
+                if deadline_dt.date() == today_date:
+                    reminder_target_dt = deadline_dt - timedelta(hours=6)
+                    if now.hour == reminder_target_dt.hour and now.minute == reminder_target_dt.minute:
+                        key_tugas_h = f"{today_date}_h6_{t.get('id')}_{now.hour}_{now.minute}"
+                        if key_tugas_h not in tugas_h_terkirim:
+                            subscribers = load_subscribers()
+                            if subscribers:
+                                jam_deadline_str = t.get("jam", "-")
+                                jam_display = f"Pukul {jam_deadline_str} WIB" if jam_deadline_str != "-" else "Pukul 23:59 WIB (Akhir Hari)"
+                                pesan_h = (
+                                    "🚨 **PENGINGAT DEADLINE TUGAS (6 JAM LAGI!)** 🚨\n\n"
+                                    f"📝 **Tugas:** {t.get('nama_tugas')}\n"
+                                    f"📕 **Matkul:** {t.get('matkul')}\n"
+                                    f"⏰ **Batas Waktu:** {jam_display} Hari Ini!\n\n"
+                                    "⚡ *Segera selesaikan dan kumpulkan tugasmu sebelum batas waktu habis!*\n"
+                                    f"💡 Ketik `/selesai {t.get('id')}` jika sudah selesai."
+                                )
+                                for chat_id in subscribers:
+                                    try:
+                                        await app.bot.send_message(chat_id=chat_id, text=pesan_h, parse_mode="Markdown")
+                                        print(f"[Scheduler] ✅ Berhasil kirim pengingat H-6 jam tugas #{t.get('id')} ke {chat_id}")
+                                    except Exception as e:
+                                        print(f"[Scheduler] ❌ Gagal kirim pengingat tugas H-6 jam: {e}")
+                            tugas_h_terkirim.add(key_tugas_h)
 
-                tugas_aktif.sort(key=lambda x: x["selisih"])
+            if len(tugas_h_terkirim) > 50:
+                tugas_h_terkirim.clear()
 
-                if tugas_aktif:
-                    subscribers = load_subscribers()
-                    daftar_teks = "\n\n".join([item["teks"] for item in tugas_aktif])
-                    pesan_malam = (
-                        "🌙 **EVALUASI & PENGINGAT TUGAS MALAM** 🌙\n\n"
-                        "Berikut daftar tugas aktifmu yang perlu dicicil/diselesaikan:\n\n"
-                        f"{daftar_teks}\n\n"
-                        "💡 *Tips: Cicil tugasmu malam ini agar tidak menumpuk!*\n"
-                        "Ketik `/selesai [ID]` jika tugas sudah beres."
-                    )
-                    for chat_id in subscribers:
-                        try:
-                            await app.bot.send_message(chat_id=chat_id, text=pesan_malam, parse_mode="Markdown")
-                            print(f"[Scheduler] ✅ Berhasil kirim evaluasi tugas malam ke {chat_id}")
-                        except Exception as e:
-                            print(f"[Scheduler] ❌ Gagal kirim evaluasi tugas malam: {e}")
+            # 4B. Sebelum Hari H: Pengingat Berkala Setiap 6 Jam (Pukul 06:00, 12:00, 18:00 WIB)
+            if now.hour in (6, 12, 18) and now.minute == 0:
+                slot_berkala_key = f"{today_date}_{now.hour}"
+                if slot_berkala_key != tugas_berkala_terakhir:
+                    tugas_mendatang = []
+                    for t in tugas_list:
+                        if not should_remind_task(t):
+                            continue
+                        deadline_dt = get_task_deadline_dt(t)
+                        if not deadline_dt:
+                            continue
 
-                tugas_malam_terakhir = today_date            
+                        # Hanya tugas yang belum tiba Hari H (deadline di masa mendatang)
+                        if deadline_dt.date() > today_date:
+                            selisih_hari = (deadline_dt.date() - today_date).days
+                            if selisih_hari == 1:
+                                status = "⚠️ *BESOK!*"
+                            elif selisih_hari <= 3:
+                                status = f"⏳ *{selisih_hari} hari lagi*"
+                            elif selisih_hari <= 7:
+                                status = f"🗓️ *{selisih_hari} hari lagi*"
+                            else:
+                                status = f"📅 *{selisih_hari} hari lagi*"
+
+                            jam_str = t.get("jam", "-")
+                            jam_info = f" • Pukul {jam_str} WIB" if jam_str and jam_str != "-" else ""
+                            tugas_mendatang.append({
+                                "selisih": selisih_hari,
+                                "teks": f"• 📝 **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {t.get('deadline')}{jam_info} ({status})"
+                            })
+
+                    tugas_mendatang.sort(key=lambda x: x["selisih"])
+
+                    if tugas_mendatang:
+                        subscribers = load_subscribers()
+                        jam_slot_str = f"{now.hour:02d}:00"
+                        daftar_teks = "\n\n".join([item["teks"] for item in tugas_mendatang])
+                        pesan_berkala = (
+                            f"📋 **PENGINGAT TUGAS BERKALA (Pukul {jam_slot_str} WIB)** 📋\n\n"
+                            "Berikut daftar tugas mendatang yang perlu dipersiapkan / dicicil:\n\n"
+                            f"{daftar_teks}\n\n"
+                            "💡 *Tips: Cicil tugasmu agar tidak menumpuk saat mendekati deadline!*\n"
+                            "Ketik `/selesai [ID]` jika tugas sudah beres."
+                        )
+                        for chat_id in subscribers:
+                            try:
+                                await app.bot.send_message(chat_id=chat_id, text=pesan_berkala, parse_mode="Markdown")
+                                print(f"[Scheduler] ✅ Berhasil kirim pengingat tugas berkala {jam_slot_str} ke {chat_id}")
+                            except Exception as e:
+                                print(f"[Scheduler] ❌ Gagal kirim pengingat tugas berkala: {e}")
+
+                    tugas_berkala_terakhir = slot_berkala_key            
 
             # 5. Alarm Pengingat Agenda Acara Hari H (Jam 05:00 Pagi)
             if now.hour == 5 and now.minute == 0:
