@@ -159,15 +159,44 @@ def register_subscriber(chat_id: int) -> None:
         except Exception as e:
             print(f"Error menyimpan config.json: {e}")
 
-def is_valid_deadline(deadline: str) -> bool:
-    """Memeriksa apakah deadline sesuai format DD-MM-YYYY."""
-    if not deadline or deadline == "-":
+def is_valid_time(time_str: str) -> bool:
+    """Memeriksa apakah string jam sesuai format HH:MM (00:00 - 23:59)."""
+    if not time_str or time_str == "-":
         return False
+    t_clean = time_str.strip().replace(".", ":")
     try:
-        datetime.strptime(deadline, "%d-%m-%Y")
-        return True
+        parts = t_clean.split(":")
+        if len(parts) != 2:
+            return False
+        h, m = int(parts[0]), int(parts[1])
+        return 0 <= h <= 23 and 0 <= m <= 59
     except ValueError:
         return False
+
+def normalize_time(time_str: str) -> str:
+    """Mengubah format jam ke standar HH:MM (contoh: '9:00' -> '09:00', '23.59' -> '23:59')."""
+    if not is_valid_time(time_str):
+        return "-"
+    t_clean = time_str.strip().replace(".", ":")
+    parts = t_clean.split(":")
+    h, m = int(parts[0]), int(parts[1])
+    return f"{h:02d}:{m:02d}"
+
+def is_valid_deadline(deadline: str) -> bool:
+    """Memeriksa apakah deadline sesuai format DD-MM-YYYY (opsional diikuti jam HH:MM)."""
+    if not deadline or deadline == "-":
+        return False
+    tokens = deadline.strip().split()
+    date_part = tokens[0]
+    try:
+        datetime.strptime(date_part, "%d-%m-%Y")
+    except ValueError:
+        return False
+
+    if len(tokens) > 1:
+        time_part = tokens[1]
+        return is_valid_time(time_part)
+    return True
 
 
 def format_jadwal_hari(hari: str, list_matkul: list) -> str:
@@ -225,7 +254,9 @@ def generate_daily_briefing() -> str:
             else:
                  status = f"🗓️ {selisih_hari} hari lagi"
 
-            tugas_mendesak.append(f"• **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str} ({status})")
+            jam_str = t.get("jam", "-")
+            jam_info = f" (Pukul {jam_str} WIB)" if jam_str and jam_str != "-" else ""
+            tugas_mendesak.append(f"• **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str}{jam_info} ({status})")
         except ValueError:
             continue
 
@@ -292,7 +323,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/jadwal semua` - Jadwal kuliah lengkap sepekan\n"
         "• `/rutinitas` - Daftar kegiatan rutin harian\n\n"
         "📝 **Manajemen Tugas:**\n"
-        "• `/tambahtugas [Nama] | [Deadline] | [Matkul]` - Catat tugas baru\n"
+        "• `/tambahtugas [Nama] | [Deadline] | [Matkul] | [Jam (opsional)]` - Catat tugas baru\n"
         "• `/listtugas` - Daftar tugas aktif\n"
         "• `/selesai [ID]` - Tandai tugas selesai / hapus\n\n"
         "📌 **To-Do Spontan (Non-Kuliah):**\n"
@@ -305,7 +336,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/hapusagenda [ID]` - Hapus agenda selesai\n\n"      
         "⏰ **Pengingat Otomatis:**\n"
         "• `/cekpengingat` - Cek ringkasan briefing hari ini sekarang\n"
-        "• *Bot juga otomatis mengirim briefing setiap jam 07:00 pagi!*\n\n"
+        "• *Bot juga otomatis mengirim briefing setiap jam 05:00 pagi!*\n\n"
     )
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
@@ -387,56 +418,74 @@ async def beresrutinitas_command(update: Update, context: ContextTypes.DEFAULT_T
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler untuk perintah /tambahtugas [Nama Tugas] | [DD-MM-YYYY] | [Matkul]"""
+    """Handler untuk perintah /tambahtugas [Nama Tugas] | [DD-MM-YYYY] | [Matkul] | [Jam (opsional)]"""
     input_teks = " ".join(context.args) if context.args else ""
 
     if not input_teks or "|" not in input_teks:
         pesan = (
             "⚠️ **Format Salah!** Gunakan pemisah tanda '|' (garis tegak).\n\n"
             "📌 **Format:**\n"
-            "`/tambahtugas [Nama Tugas] | [Deadline DD-MM-YYYY] | [Mata Kuliah (opsional)]`\n\n"
+            "`/tambahtugas [Nama Tugas] | [Deadline DD-MM-YYYY] | [Mata Kuliah (opsional)] | [Jam HH:MM (opsional)]`\n\n"
             "💡 **Contoh:**\n"
-            "`/tambahtugas Laporan Modul 2 | 20-08-2026 | Keamanan Jaringan`"
+            "• *Dengan Jam:* `/tambahtugas Laporan Modul 2 | 20-08-2026 | Keamanan Jaringan | 23:59`\n"
+            "• *Atau Jam Digabung:* `/tambahtugas Laporan Modul 2 | 20-08-2026 23:59 | Keamanan Jaringan`\n"
+            "• *Tanpa Jam:* `/tambahtugas Tugas Resume | 20-08-2026 | Sistem Operasi`"
         )
         await update.message.reply_text(pesan, parse_mode="Markdown")
         return 
 
     bagian = [b.strip() for b in input_teks.split("|")]
     nama_tugas = bagian[0]
-    deadline_str = bagian[1] if len(bagian) > 1 else "-"
-    matkul = bagian[2] if len(bagian) > 2 else "Umum"
+    deadline_raw = bagian[1] if len(bagian) > 1 else "-"
+    matkul = bagian[2] if len(bagian) > 2 and bagian[2] else "Umum"
+    jam_raw = bagian[3] if len(bagian) > 3 else "-"
 
-    if not is_valid_deadline(deadline_str):
+    if not is_valid_deadline(deadline_raw):
         pesan = (
             "⚠️ **Format deadline tidak valid.**\n\n"
-            "Gunakan format **DD-MM-YYYY**.\n"
-            "Contoh: `/tambahtugas Tugas Besar | 20-08-2026 | Keamanan Jaringan`\n\n"
+            "Gunakan format tanggal **DD-MM-YYYY** (bisa ditambah jam HH:MM).\n"
+            "Contoh: `/tambahtugas Tugas Besar | 20-08-2026 | Keamanan Jaringan | 23:59`\n"
+            "Atau: `/tambahtugas Tugas Besar | 20-08-2026 | Keamanan Jaringan` (tanpa jam)\n\n"
             "Silakan masukkan ulang dengan format yang benar."
         )
         await update.message.reply_text(pesan, parse_mode="Markdown")
         return
 
-    tugas_list = load_tugas_data()
+    # Pisahkan tanggal dan jam jika digabung di bagian deadline (misal: '20-08-2026 23:59')
+    deadline_tokens = deadline_raw.strip().split()
+    deadline_str = deadline_tokens[0]
+    if len(deadline_tokens) > 1 and jam_raw == "-":
+        jam_raw = deadline_tokens[1]
 
+    # Normalisasi jam
+    if is_valid_time(jam_raw):
+        jam_str = normalize_time(jam_raw)
+    else:
+        jam_str = "-"
+
+    tugas_list = load_tugas_data()
     next_id = max([t.get("id", 0) for t in tugas_list], default=0) + 1
 
     tugas_baru = {
         "id": next_id,
         "nama_tugas": nama_tugas,
         "deadline": deadline_str,
+        "jam": jam_str,
         "matkul": matkul,
         "dibuat_pada": get_now_wib().strftime("%Y-%m-%d %H:%M:%S")
     }
 
     tugas_list.append(tugas_baru)
     if save_tugas_data(tugas_list):
+        jam_display = f"{jam_str} WIB" if jam_str != "-" else "Tidak ditentukan"
         pesan = (
             f"✅ **Tugas Berhasil Ditambahkan!**\n\n"
-            f"🆔 **ID:** '#{next_id}'\n"
+            f"🆔 **ID:** `#{next_id}`\n"
             f"📝 **Tugas:** {nama_tugas}\n"
             f"📕 **Matkul:** {matkul}\n"
-            f"⏰ **Deadline:** {deadline_str}\n\n"
-            "Ketik '/listtugas' untuk melihat semua tugas yang belum selesai."
+            f"📅 **Deadline:** {deadline_str}\n"
+            f"⏰ **Waktu / Jam:** {jam_display}\n\n"
+            "Ketik `/listtugas` untuk melihat semua tugas yang belum selesai."
         )
     else:
         pesan = "❌ Gagal menyimpan tugas ke database."
@@ -452,13 +501,15 @@ async def listtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
     pesan ="📋 **DAFTAR TUGAS KULIAH AKTIF**:\n"
     for t in tugas_list:
-        pesan += f"\n🆔 **ID:** '#{t.get('id')}'\n"
+        jam_str = t.get("jam", "-")
+        jam_info = f" (Pukul {jam_str} WIB)" if jam_str and jam_str != "-" else " (Jam tidak ditentukan)"
+        pesan += f"\n🆔 **ID:** `#{t.get('id')}`\n"
         pesan += f"📝 **Tugas:** {t.get('nama_tugas', '-')}\n"
         pesan += f"📕 **Matkul:** {t.get('matkul', '-')}\n"
-        pesan += f"⏰ **Deadline:** {t.get('deadline', '-')}\n"
+        pesan += f"⏰ **Deadline:** {t.get('deadline', '-')}{jam_info}\n"
         pesan += f"----------------------------"
 
-    pesan += "\n\n💡 *Gunakan '/selesai [ID]' jika tugas sudah dikerjakan.*"
+    pesan += "\n\n💡 *Gunakan `/selesai [ID]` jika tugas sudah dikerjakan.*"
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def selesai_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -829,9 +880,11 @@ async def auto_reminder_loop(app) -> None:
                         else:
                             status = f"📅 *{selisih} hari lagi*"
 
+                        jam_str = t.get("jam", "-")
+                        jam_info = f" (Pukul {jam_str} WIB)" if jam_str and jam_str != "-" else ""
                         tugas_aktif.append({
                             "selisih": selisih,
-                            "teks": f"• 📝 **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str} ({status})"
+                            "teks": f"• 📝 **{t.get('nama_tugas')}** ({t.get('matkul')})\n  ⏰ Deadline: {deadline_str}{jam_info} ({status})"
                         })
                     except ValueError:
                         continue

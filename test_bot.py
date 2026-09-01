@@ -10,6 +10,8 @@ from bot import (
     load_agenda_data,
     save_agenda_data,
     is_valid_deadline,
+    is_valid_time,
+    normalize_time,
     generate_daily_briefing,
     load_subscribers,
     register_subscriber,
@@ -48,21 +50,31 @@ def test_jadwal_data():
     print("[OK] Logika jadwal & rutinitas terverifikasi.")
 
 def test_tugas_crud():
-    """Memverifikasi operasi simpan dan baca tugas"""
+    """Memverifikasi operasi simpan dan baca tugas (dengan jam dan tanpa jam)"""
     sample_tugas = [
         {
             "id": 1,
-            "nama_tugas": "Tugas Uji Coba",
+            "nama_tugas": "Tugas Dengan Jam",
             "deadline": "20-08-2026",
+            "jam": "23:59",
             "matkul": "Keamanan Jaringan",
+            "dibuat_pada": "2026-08-15 07:00:00"
+        },
+        {
+            "id": 2,
+            "nama_tugas": "Tugas Tanpa Jam",
+            "deadline": "22-08-2026",
+            "jam": "-",
+            "matkul": "Sistem Operasi",
             "dibuat_pada": "2026-08-15 07:00:00"
         }
     ]
     assert save_tugas_data(sample_tugas), "Gagal menyimpan sample tugas!"
     loaded = load_tugas_data()
-    assert len(loaded) == 1, "Jumlah tugas yang dimuat tidak sesuai!"
-    assert loaded[0]["nama_tugas"] == "Tugas Uji Coba", "Data tugas tidak cocok!"
-    print("[OK] Logika tugas (tugas.json) terverifikasi.")
+    assert len(loaded) == 2, "Jumlah tugas yang dimuat tidak sesuai!"
+    assert loaded[0]["jam"] == "23:59", "Data jam tugas 1 tidak cocok!"
+    assert loaded[1]["jam"] == "-", "Data jam tugas 2 tidak cocok!"
+    print("[OK] Logika tugas (tugas.json) dengan fitur jam terverifikasi.")
 
 def test_todo_crud():
     """Memverifikasi operasi simpan dan baca to-do spontan"""
@@ -97,12 +109,20 @@ def test_agenda_crud():
     print("[OK] Logika agenda (agenda.json) terverifikasi.")
 
 def test_deadline_format_validation():
-    """Memastikan tanggal deadline harus menggunakan format dd-mm-yyyy"""
+    """Memastikan tanggal deadline harus menggunakan format dd-mm-yyyy dan jam hh:mm"""
     assert is_valid_deadline("20-08-2026") is True
+    assert is_valid_deadline("20-08-2026 23:59") is True
+    assert is_valid_deadline("20-08-2026 25:00") is False
     assert is_valid_deadline("2026-08-20") is False
     assert is_valid_deadline("32-08-2026") is False
     assert is_valid_deadline("20/08/2026") is False
-    print("[OK] Validasi format deadline/tanggal terverifikasi.")
+    assert is_valid_time("23:59") is True
+    assert is_valid_time("23.59") is True
+    assert is_valid_time("9:00") is True
+    assert is_valid_time("24:00") is False
+    assert normalize_time("9:00") == "09:00"
+    assert normalize_time("23.59") == "23:59"
+    print("[OK] Validasi format deadline & jam terverifikasi.")
 
 def test_daily_briefing():
     """Memverifikasi perangkaian pesan briefing harian otomatis"""
