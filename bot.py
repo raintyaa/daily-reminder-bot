@@ -138,15 +138,33 @@ def save_rutinitas_selesai_data(selesai_list: list) -> bool:
 
 def load_subscribers() -> list:
     """Membaca daftar chat_id yang terdaftar untuk pengingat"""
-    if not os.path.exists(CONFIG_FILE):
-        return []
-    try:
-        with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data.get("subscribers", [])
-    except Exception as e:
-        print(f"Error membaca config.json: {e}")
-        return []
+    subs = []
+    default_chat = os.getenv("DEFAULT_CHAT_ID")
+    if default_chat:
+        try:
+            for cid in default_chat.split(","):
+                cid_clean = cid.strip()
+                if cid_clean.isdigit() or (cid_clean.startswith("-") and cid_clean[1:].isdigit()):
+                    subs.append(int(cid_clean))
+        except Exception:
+            pass
+
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                file_subs = data.get("subscribers", [])
+                for s in file_subs:
+                    if s not in subs:
+                        subs.append(s)
+        except Exception as e:
+            print(f"Error membaca config.json: {e}")
+
+    # Fallback default chat ID (Rakha) jika belum ada config tersimpan di cloud container
+    if not subs:
+        subs = [7692978156]
+
+    return subs
 
 def register_subscriber(chat_id: int) -> None:
     """Mendaftarkan chat_id agar menerima notifikasi otomatis"""
@@ -808,7 +826,7 @@ async def auto_reminder_loop(app) -> None:
             today_date = now.date()
             current_time_str = now.strftime("%H:%M")
 
-            if now.hour == 5 and now.minute == 0 and briefing_terakhir != today_date:
+            if now.hour == 5 and briefing_terakhir != today_date:
                 subscribers = load_subscribers()
                 if subscribers:
                     pesan = generate_daily_briefing()
