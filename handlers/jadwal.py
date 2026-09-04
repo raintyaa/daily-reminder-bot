@@ -96,36 +96,79 @@ async def rutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def beresrutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler untuk perintah /beresrutinitas [ID]"""
+    """Handler untuk perintah /beresrutinitas [ID 1] [ID 2] ... (bisa banyak ID & urutan acak)"""
     if not context.args:
-        await update.message.reply_text("⚠️ Masukkan ID rutinitas yang ingin dicoret.\nContoh: `/beresrutinitas 1`", parse_mode="Markdown")
-        return
-    target_str = context.args[0].replace("#", "")
-    if not target_str.isdigit():
-        await update.message.reply_text("⚠️ ID rutinitas harus berupa angka. Contoh: `/beresrutinitas 1`", parse_mode="Markdown")
+        await update.message.reply_text(
+            "⚠️ Masukkan ID rutinitas yang ingin dicoret.\n\n"
+            "💡 **Contoh:**\n"
+            "• Satu rutinitas: `/beresrutinitas 1`\n"
+            "• Banyak rutinitas (urutan acak): `/beresrutinitas 3 1 4 2`",
+            parse_mode="Markdown"
+        )
         return
 
-    target_id = int(target_str)
+    raw_tokens = " ".join(context.args).replace(",", " ").split()
+    target_ids = []
+    for token in raw_tokens:
+        clean = token.replace("#", "")
+        if clean.isdigit():
+            target_ids.append(int(clean))
+    if not target_ids:
+        await update.message.reply_text(
+            "⚠️ ID rutinitas harus berupa angka.\nContoh: `/beresrutinitas 1 2 3`",
+            parse_mode="Markdown"
+        )
+        return
     data = load_jadwal_data()
     raw_rutinitas = data.get("rutinitas", [])
     rutinitas = [normalize_rutinitas_item(item, i) for i, item in enumerate(raw_rutinitas, 1)]
-
-    target_item = next((r for r in rutinitas if r["id"] == target_id), None)
-    if not target_item:
-        await update.message.reply_text(f"❌ Rutinitas dengan ID `#{target_id}` tidak ditemukan. Ketik `/rutinitas` untuk melihat daftar ID.", parse_mode="Markdown")
-        return
-
+    rutinitas_map = {r["id"]: r for r in rutinitas}
     selesai_list = load_rutinitas_selesai_data()
-    if target_id not in selesai_list:
-        selesai_list.append(target_id)
-        save_rutinitas_selesai_data(selesai_list)
+    berhasil_dicoret = []
+    sudah_selesai_sebelumnya = []
+    tidak_ditemukan = []
 
-    pesan = (
-        f"🎉 **Bagus! Rutinitas Beres Hari Ini:**\n\n"
-        f"✅ *{target_item['kegiatan']}* (Pukul {target_item['jam']} WIB)\n\n"
-        "Status ini akan otomatis di-reset besok pagi."
-    )
-    await update.message.reply_text(pesan, parse_mode="Markdown")
+    unique_target_ids = list(dict.fromkeys(target_ids))
+
+    for tid in unique_target_ids:
+        if tid in rutinitas_map:
+            item = rutinitas_map[tid]
+            if tid not in selesai_list:
+                selesai_list.append(tid)
+                berhasil_dicoret.append(item)
+            else:
+                sudah_selesai_sebelumnya.append(item)
+        else:
+            tidak_ditemukan.append(tid)
+    
+    if berhasil_dicoret:
+        save_rutinitas_selesai_data(selesai_list)
+        berhasil_dicoret.sort(key=lambda x: x["jam"])
+
+    pesan_bagian = []
+
+    if berhasil_dicoret:
+        if len(berhasil_dicoret) == 1:
+            item = berhasil_dicoret[0]
+            pesan_bagian.append(
+                f"🎉 **Bagus! Rutinitas Beres Hari Ini:**\n\n"
+                f"✅ *{item['kegiatan']}* (Pukul {item['jam']} WIB)"
+            )
+        else:
+            daftar_teks = "\n".join([f"• ✅ *{item['kegiatan']}* (Pukul {item['jam']} WIB)" for item in berhasil_dicoret])
+            pesan_bagian.append(
+                f"🎉 **Bagus! {len(berhasil_dicoret)} Rutinitas Beres Hari Ini:**\n\n"
+                f"{daftar_teks}"
+            )
+    if sudah_selesai_sebelumnya:
+        daftar_sudah = ", ".join([f"`#{item['id']}` ({item['kegiatan']})" for item in sudah_selesai_sebelumnya])
+        pesan_bagian.append(f"ℹ️ *Sudah dicoret sebelumnya:* {daftar_sudah}")
+    if tidak_ditemukan:
+        daftar_hilang = ", ".join([f"`#{tid}`" for tid in tidak_ditemukan])
+        pesan_bagian.append(f"❌ *ID tidak ditemukan:* {daftar_hilang}\n(Ketik `/rutinitas` untuk melihat daftar ID yang tersedia)")
+    pesan_bagian.append("\nStatus ini akan otomatis di-reset besok pagi.")
+    pesan_final = "\n\n".join(pesan_bagian)
+    await update.message.reply_text(pesan_final, parse_mode="Markdown")
 
 async def tambahrutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler untuk perintah /tambahrutinitas [Hari] | [Jam] | [Keterangan]"""

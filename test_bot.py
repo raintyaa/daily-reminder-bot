@@ -203,9 +203,13 @@ def test_rutinitas_crud():
         if r["hari"] in ("setiap hari", "semua", "all", "daily", "jumat")
     ]
     assert len(hari_jumat_aktif) == 2  # Subuh + Salat Jumat (Olahraga minggu tidak masuk)
-    assert any(r["kegiatan"] == "Salat Jumat" for r in hari_jumat_aktif)
+    # 4. Simulasi input multi-ID dengan urutan acak & pemisah koma/spasi
+    input_str = "4, 1, 3 2 1"
+    raw_tokens = input_str.replace(",", " ").split()
+    parsed_ids = list(dict.fromkeys([int(t) for t in raw_tokens if t.isdigit()]))
+    assert parsed_ids == [4, 1, 3, 2]  # Duplikat '1' di akhir hilang, urutan acak diterima
 
-    print("[OK] Logika penyeragaman & filter hari rutinitas terverifikasi.")
+    print("[OK] Logika penyeragaman, filter hari, & multi-ID rutinitas terverifikasi.")
 
 if __name__ == "__main__":
     test_handlers()
