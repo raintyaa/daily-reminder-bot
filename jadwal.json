@@ -68,9 +68,29 @@
     "minggu": []
   },
   "rutinitas": [
-    "04:30 - Bangun pagi, salat subuh & olahraga",
-    "06:00 - Kemas rumah, mandi & sarapan",
-    "19:00 - Review materi kuliah & cek tugas",
-    "22:30 - Istirahat / Tidur"
+    {
+      "id": 1,
+      "hari": "setiap hari",
+      "jam": "04:30",
+      "kegiatan": "Bangun pagi, salat subuh & olahraga"
+    },
+    {
+      "id": 2,
+      "hari": "setiap hari",
+      "jam": "06:00",
+      "kegiatan": "Kemas rumah, mandi & sarapan"
+    },
+    {
+      "id": 3,
+      "hari": "setiap hari",
+      "jam": "19:00",
+      "kegiatan": "Review materi kuliah & cek tugas"
+    },
+    {
+      "id": 4,
+      "hari": "setiap hari",
+      "jam": "22:30",
+      "kegiatan": "Istirahat / Tidur"
+    }
   ]
 }

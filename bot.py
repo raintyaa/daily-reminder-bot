@@ -47,6 +47,40 @@ def load_jadwal_data() -> dict:
         print(f"Error membaca jadwal.json: {e}")
         return {"jadwal": {}, "rutinitas": []}
 
+def save_jadwal_data(jadwal_data: dict) -> bool:
+    """Menyimpan data jadwal dan rutinitas ke jadwal.json"""
+    try:
+        with open(JADWAL_FILE, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        return True
+    except Exception as e:
+        print(f"Error menyimpan jadwal.json: {e}")
+        return False
+
+def normalize_rutinitas_item(item, default_id: int = 1) -> dict:
+    """Menyeragamkan data rutinitas baik format teks lama maupun objek baru"""
+    if isinstance(item, dict):
+        return {
+            "id": item.get("id", default_id),
+            "hari": item.get("hari", "setiap hari").lower(),
+            "jam": normalize_time(item.get("jam", "00:00")),
+            "kegiatan": item.get("kegiatan", "-")           
+        }
+    elif isinstance(item, str) and " - " in item:
+        jam_part, nama_part = item.split(" - ", 1)
+        return {
+            "id": default_id,
+            "hari": "setiap hari",
+            "jam": normalize_time(jam_part.strip()),
+            "kegiatan": nama_part.strip()
+        }
+    return {
+        "id": default_id,
+        "hari": "setiap hari",
+        "jam": "00:00",
+        "kegiatan": str(item)        
+    }
+
 def load_tugas_data() -> list:
     """Membaca daftar tugas dari data.json"""
     if not os.path.exists(TUGAS_FILE):
@@ -372,7 +406,11 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         "• `/jadwal` - Cek jadwal kuliah hari ini\n"
         "• `/jadwal senin` - Jadwal hari Senin (bisa diganti hari lain)\n"
         "• `/jadwal semua` - Jadwal kuliah lengkap sepekan\n"
-        "• `/rutinitas` - Daftar kegiatan rutin harian\n\n"
+        "• `/rutinitas` - Daftar rutinitas hari ini\n"
+        "• `/rutinitas semua` - Seluruh daftar rutinitas lengkap\n"
+        "• `/tambahrutinitas [Hari] | [Jam] | [Keterangan]` - Tambah rutinitas baru\n"
+        "• `/hapusrutinitas [ID]` - Hapus rutinitas\n"
+        "• `/beresrutinitas [ID]` - Coret rutinitas selesai hari ini\n\n"
         "📝 **Manajemen Tugas:**\n"
         "• `/tambahtugas [Nama] | [Deadline] | [Matkul] | [Jam (opsional)]` - Catat tugas baru\n"
         "• `/listtugas` - Daftar tugas aktif\n"
@@ -426,46 +464,190 @@ async def jadwal_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> 
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def rutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler untuk perintah /rutinitas"""
+    """Handler untuk perintah /rutinitas [hari/semua]"""
     data = load_jadwal_data()
-    rutinitas = data.get("rutinitas", [])
+    raw_rutinitas = data.get("rutinitas", [])
+    rutinitas = [normalize_rutinitas_item(item, i) for i, item in enumerate(raw_rutinitas, 1)]
     selesai_ids = load_rutinitas_selesai_data()
     if not rutinitas:
-        pesan = "📝 Belum ada daftar rutinitas yang tersimpan."
+        await update.message.reply_text("📝 Belum ada daftar rutinitas yang tersimpan.\nGunakan `/tambahrutinitas` untuk menambah.", parse_mode="Markdown")
+        return
+    
+    hari_index = get_now_wib().weekday()
+    hari_ini = HARI_INDONESIA.get(hari_index, "senin")
+    # Jika pengguna meminta hari spesifik atau semua
+    if context.args:
+        pilihan = context.args[0].lower()
+        if pilihan in ("semua", "all", "daftar"):
+            pesan = "⏰ **DAFTAR SELURUH RUTINITAS (SEMUA HARI)**:\n\n"
+            for r in rutinitas:
+                status = " *(✅ Selesai Hari Ini)*" if r["id"] in selesai_ids else ""
+                hari_tag = f"[{r['hari'].title()}]"
+                pesan += f"• 🆔 `#{r['id']}` {hari_tag} Pukul {r['jam']} WIB:\n  🔔 **{r['kegiatan']}**{status}\n"
+            pesan += "\n💡 *Gunakan `/tambahrutinitas` atau `/hapusrutinitas [ID]` untuk mengelola.*"
+            await update.message.reply_text(pesan, parse_mode="Markdown")
+            return
+        elif pilihan in HARI_INDONESIA.values() or pilihan == "setiap hari":
+            target_hari = pilihan
+        else:
+            await update.message.reply_text("⚠️ Nama hari tidak dikenali. Contoh: `/rutinitas`, `/rutinitas jumat`, atau `/rutinitas semua`", parse_mode="Markdown")
+            return
     else:
-        pesan = "⏰ **Daftar Rutinitas Harian**:\n\n"
-        for i, item in enumerate(rutinitas, 1):
-            status = " *(✅ Selesai Hari Ini)*" if i in selesai_ids else ""
-            pesan += f"{i}. {item}{status}\n"
-        pesan += "\n💡 *Gunakan `/beresrutinitas [Nomor]` untuk mencoret rutinitas yang selesai hari ini.*"
-
+        target_hari = hari_ini
+    # Filter rutinitas untuk hari yang dipilih (rutinitas 'setiap hari' + rutinitas hari itu)
+    daftar_hari = [r for r in rutinitas if r["hari"] in ("setiap hari", "semua", "all", "daily", target_hari)]
+    daftar_hari.sort(key=lambda x: x["jam"])
+    if not daftar_hari:
+        pesan = f"⏰ **Rutinitas Hari {target_hari.capitalize()}**:\n*Tidak ada kegiatan rutinitas khusus di hari ini.*"
+    else:
+        pesan = f"⏰ **Daftar Rutinitas - {target_hari.capitalize()}**:\n\n"
+        for r in daftar_hari:
+            status = " *(✅ Selesai Hari Ini)*" if r["id"] in selesai_ids else ""
+            label_hari = " (Setiap Hari)" if r["hari"] in ("setiap hari", "semua", "daily", "all") else ""
+            pesan += f"• 🆔 `#{r['id']}` Pukul **{r['jam']} WIB**{label_hari}:\n  🔔 {r['kegiatan']}{status}\n"
+        pesan += "\n💡 *Gunakan `/beresrutinitas [ID]` untuk mencoret rutinitas yang selesai hari ini.*"
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def beresrutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Handler untuk perintah /beresrutinitas [Nomor]"""
+    """Handler untuk perintah /beresrutinitas [ID]"""
     if not context.args:
-        await update.message.reply_text("⚠️ Masukkan nomor rutinitas yang ingin dicoret.\nContoh: `/beresrutinitas 1`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ Masukkan ID rutinitas yang ingin dicoret.\nContoh: `/beresrutinitas 1`", parse_mode="Markdown")
         return
     target_str = context.args[0].replace("#", "")
     if not target_str.isdigit():
-        await update.message.reply_text("⚠️ Nomor rutinitas harus berupa angka. Contoh: `/beresrutinitas 1`", parse_mode="Markdown")
+        await update.message.reply_text("⚠️ ID rutinitas harus berupa angka. Contoh: `/beresrutinitas 1`", parse_mode="Markdown")
         return
-    target_no = int(target_str)
+    target_id = int(target_str)
     data = load_jadwal_data()
-    rutinitas = data.get("rutinitas", [])
-    if target_no < 1 or target_no > len(rutinitas):
-        await update.message.reply_text(f"❌ Rutinitas nomor `{target_no}` tidak ditemukan. Ketik `/rutinitas` untuk melihat daftar nomor.", parse_mode="Markdown")
+    raw_rutinitas = data.get("rutinitas", [])
+    rutinitas = [normalize_rutinitas_item(item, i) for i, item in enumerate(raw_rutinitas, 1)]
+    target_item = next((r for r in rutinitas if r["id"] == target_id), None)
+    if not target_item:
+        await update.message.reply_text(f"❌ Rutinitas dengan ID `#{target_id}` tidak ditemukan. Ketik `/rutinitas` untuk melihat daftar ID.", parse_mode="Markdown")
         return
     selesai_list = load_rutinitas_selesai_data()
-    if target_no not in selesai_list:
-        selesai_list.append(target_no)
+    if target_id not in selesai_list:
+        selesai_list.append(target_id)
         save_rutinitas_selesai_data(selesai_list)
-    item_nama = rutinitas[target_no - 1]
     pesan = (
         f"🎉 **Bagus! Rutinitas Beres Hari Ini:**\n\n"
-        f"✅ *{item_nama}*\n\n"
+        f"✅ *{target_item['kegiatan']}* (Pukul {target_item['jam']} WIB)\n\n"
         "Status ini akan otomatis di-reset besok pagi."
     )
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
+async def tambahrutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk perintah /tambahrutinitas [Hari] | [Jam] | [Keterangan]"""
+    input_teks = " ".join(context.args) if context.args else ""
+
+    if not input_teks or "|" not in input_teks:
+        pesan = (
+            "⚠️ **Format Salah!** Gunakan pemisah tanda '|' (garis tegak).\n\n"
+            "📌 **Format:**\n"
+            "`/tambahrutinitas [Hari] | [Jam HH:MM] | [Keterangan Kegiatan]`\n\n"
+            "💡 **Pilihan Hari:**\n"
+            "• `setiap hari` (berlaku tiap hari)\n"
+            "• Hari spesifik: `senin`, `selasa`, `rabu`, `kamis`, `jumat`, `sabtu`, `minggu`\n\n"
+            "💡 **Contoh:**\n"
+            "• `/tambahrutinitas setiap hari | 04:30 | Bangun pagi & salat subuh`\n"
+            "• `/tambahrutinitas jumat | 11:30 | Persiapan salat Jumat`\n"
+            "• `/tambahrutinitas minggu | 08:00 | Bersih-bersih kamar`"
+        )
+        await update.message.reply_text(pesan, parse_mode="Markdown")
+        return
+
+    bagian = [b.strip() for b in input_teks.split("|")]
+    if len(bagian) < 3:
+        await update.message.reply_text("⚠️ Format kurang lengkap! Pastikan mengisi: `Hari | Jam | Keterangan`", parse_mode="Markdown")
+        return
+
+    hari_raw = bagian[0].lower()
+    jam_raw = bagian[1]
+    kegiatan = bagian[2]
+
+    # Validasi hari
+    hari_valid = set(HARI_INDONESIA.values()) | {"setiap hari", "semua", "all", "daily"}
+    if hari_raw not in hari_valid:
+        await update.message.reply_text("⚠️ Hari tidak valid! Pilih antara `setiap hari` atau hari spesifik (`senin`-`minggu`).", parse_mode="Markdown")
+        return
+
+    hari_final = "setiap hari" if hari_raw in ("setiap hari", "semua", "all", "daily") else hari_raw
+
+    # Validasi jam
+    if not is_valid_time(jam_raw):
+        await update.message.reply_text("⚠️ Format jam tidak valid! Gunakan format **HH:MM** (contoh: `04:30` atau `19:00`).", parse_mode="Markdown")
+        return
+
+    jam_final = normalize_time(jam_raw)
+
+    data = load_jadwal_data()
+    raw_rutinitas = data.get("rutinitas", [])
+    rutinitas = [normalize_rutinitas_item(item, i) for i, item in enumerate(raw_rutinitas, 1)]
+
+    next_id = max([r.get("id", 0) for r in rutinitas], default=0) + 1
+
+    item_baru = {
+        "id": next_id,
+        "hari": hari_final,
+        "jam": jam_final,
+        "kegiatan": kegiatan
+    }
+
+    rutinitas.append(item_baru)
+    data["rutinitas"] = rutinitas
+
+    if save_jadwal_data(data):
+        pesan = (
+            f"✅ **Rutinitas Berhasil Ditambahkan!**\n\n"
+            f"🆔 **ID:** `#{next_id}`\n"
+            f"📅 **Hari:** {hari_final.capitalize()}\n"
+            f"⏰ **Waktu:** {jam_final} WIB\n"
+            f"🔔 **Kegiatan:** {kegiatan}\n\n"
+            "Ketik `/rutinitas` untuk melihat daftar rutinitas."
+        )
+    else:
+        pesan = "❌ Gagal menyimpan rutinitas ke database."
+
+    await update.message.reply_text(pesan, parse_mode="Markdown")
+
+async def hapusrutinitas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handler untuk perintah /hapusrutinitas [ID]"""
+    if not context.args:
+        await update.message.reply_text("⚠️ Masukkan ID rutinitas yang ingin dihapus.\nContoh: `/hapusrutinitas 1`", parse_mode="Markdown")
+        return
+
+    target_id_str = context.args[0].replace("#", "")
+    if not target_id_str.isdigit():
+        await update.message.reply_text("⚠️ ID rutinitas harus berupa angka. Contoh: `/hapusrutinitas 1`", parse_mode="Markdown")
+        return
+
+    target_id = int(target_id_str)
+    data = load_jadwal_data()
+    raw_rutinitas = data.get("rutinitas", [])
+    rutinitas = [normalize_rutinitas_item(item, i) for i, item in enumerate(raw_rutinitas, 1)]
+
+    item_dihapus = None
+    sisa_rutinitas = []
+    for r in rutinitas:
+        if r.get("id") == target_id:
+            item_dihapus = r
+        else:
+            sisa_rutinitas.append(r)
+
+    if not item_dihapus:
+        await update.message.reply_text(f"❌ Rutinitas dengan ID `#{target_id}` tidak ditemukan.\nKetik `/rutinitas semua` untuk melihat daftar ID.", parse_mode="Markdown")
+        return
+
+    data["rutinitas"] = sisa_rutinitas
+    if save_jadwal_data(data):
+        pesan = (
+            f"🗑️ **Rutinitas Berhasil Dihapus:**\n\n"
+            f"• 🆔 `#{target_id}`: **{item_dihapus.get('kegiatan')}**\n"
+            f"  ⏰ {item_dihapus.get('hari').title()} pukul {item_dihapus.get('jam')} WIB"
+        )
+    else:
+        pesan = "❌ Gagal menghapus rutinitas dari database."
+
     await update.message.reply_text(pesan, parse_mode="Markdown")
 
 async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -839,39 +1021,40 @@ async def auto_reminder_loop(app) -> None:
                     briefing_terakhir = today_date
 
             jadwal_data = load_jadwal_data()
-            rutinitas_list = jadwal_data.get("rutinitas", [])
-
-            for item in rutinitas_list:
-                if " - " in item:
-                    jam_target, nama_rutinitas = item.split(" - ", 1)
-                    jam_target = jam_target.strip().replace(".", ":")
-                    if len(jam_target.split(":")[0]) == 1:
-                        jam_target = "0" + jam_target
-
-                    nama_rutinitas = nama_rutinitas.strip()
-                    key_rutinitas = f"{today_date}_{jam_target}"
-
-                    if current_time_str == jam_target and key_rutinitas not in rutinitas_terkirim:
+            raw_rutinitas = jadwal_data.get("rutinitas", [])
+            rutinitas_list = [normalize_rutinitas_item(item, i) for i, item in enumerate(raw_rutinitas, 1)]
+            hari_index = now.weekday()
+            hari_ini = HARI_INDONESIA.get(hari_index, "senin")
+            # 2. Alarm Rutinitas (Setiap Hari atau Hari Spesifik)
+            for r in rutinitas_list:
+                r_hari = r.get("hari", "setiap hari")
+                r_jam = r.get("jam", "00:00")
+                r_kegiatan = r.get("kegiatan", "-")
+                r_id = r.get("id", 0)
+                # Cocokkan jika rutinitas berlaku setiap hari ATAU hari spesifik hari ini
+                if r_hari in ("setiap hari", "semua", "all", "daily", hari_ini):
+                    key_rutinitas = f"{today_date}_{r_id}_{r_jam}"
+                    if current_time_str == r_jam and key_rutinitas not in rutinitas_terkirim:
                         subscribers = load_subscribers()
-                        print(f"[scheduler] Pukul {current_time_str}: Waktu cocok! Mengirim '{nama_rutinitas}' ke: {subscribers}")
+                        print(f"[Scheduler] Pukul {current_time_str}: Waktu cocok! Mengirim rutinitas '{r_kegiatan}' ke: {subscribers}")
                         if subscribers:
+                            label_hari = f" ({r_hari.capitalize()})" if r_hari != "setiap hari" else ""
                             pesan_rutinitas = (
-                                f"⏰ **PENGINGAT RUTINITAS ({jam_target})**\n\n"
-                                f"🔔 *Waktunya:* **{nama_rutinitas}**"                            
+                                f"⏰ **PENGINGAT RUTINITAS ({r_jam} WIB)**\n\n"
+                                f"🔔 *Waktunya:* **{r_kegiatan}**{label_hari}\n\n"
+                                f"💡 *Ketik `/beresrutinitas {r_id}` jika sudah selesai!*"
                             )
                             for chat_id in subscribers:
                                 try:
                                     await app.bot.send_message(chat_id=chat_id, text=pesan_rutinitas, parse_mode="Markdown")
-                                    print(f"[scheduler] ✅ Berhasil mengirim alarm ke {chat_id}")
+                                    print(f"[Scheduler] ✅ Berhasil mengirim alarm rutinitas ke {chat_id}")
                                 except Exception as e:
-                                    print(f"[Scheduler] ❌ Gagal kirim alarm ke {chat_id}: {e}")
+                                    print(f"[Scheduler] ❌ Gagal kirim alarm rutinitas ke {chat_id}: {e}")
                         rutinitas_terkirim.add(key_rutinitas)
 
-            if len(rutinitas_terkirim) > 30:
+            if len(rutinitas_terkirim) > 50:
                 rutinitas_terkirim.clear()
 
-            hari_index = now.weekday()
-            hari_ini = HARI_INDONESIA.get(hari_index, "senin")
             jadwal_hari_ini = jadwal_data.get("jadwal", {}).get(hari_ini, [])
 
             for matkul_item in jadwal_hari_ini:
@@ -1062,6 +1245,8 @@ def build_app(token: str):
     app.add_handler(CommandHandler("hapusagenda", hapusagenda_command))
     app.add_handler(CommandHandler("beresrutinitas", beresrutinitas_command))
     app.add_handler(CommandHandler("cekpengingat", cekpengingat_command))
+    app.add_handler(CommandHandler("tambahrutinitas", tambahrutinitas_command))
+    app.add_handler(CommandHandler("hapusrutinitas", hapusrutinitas_command))
     return app
 
 class HealthCheckHandler(BaseHTTPRequestHandler):

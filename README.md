@@ -17,7 +17,7 @@
   * 🚨 **Hari H Deadline (H-6 Jam)**: Alarm mendesak berbunyi tepat 6 jam sebelum jam batas waktu tugas hari H.
   * 📋 **Sebelum Hari H (Setiap 6 Jam)**: Pengingat berkala tugas mendatang pada pukul **06:00, 12:00, dan 18:00 WIB**.
   * 🛡️ **Filter < 6 Jam**: Tugas yang diinput mepet (< 6 jam sebelum deadline) otomatis dikecualikan dari alarm pengingat berulang.
-* ⏰ **Rutinitas Harian & Fitur Coret (`/beresrutinitas`)**: Alarm pengingat kegiatan rutin harian (misal: salat, olahraga, review materi) dengan fitur centang/coret yang **otomatis di-reset setiap pergantian hari (00:00 WIB)**.
+* ⏰ **Rutinitas Kustom & Fitur Coret (`/beresrutinitas`)**: Alarm pengingat kegiatan rutin harian maupun hari spesifik (misal: salat Jumat atau olahraga akhir pekan) dengan dukungan CRUD penuh via chat (`/tambahrutinitas`, `/hapusrutinitas`) dan fitur centang/coret yang **otomatis di-reset setiap pergantian hari (00:00 WIB)**.
 * 📅 **Agenda Kegiatan Khusus & Event Tracker**: Pencatatan acara bertanggal khusus (rapat ormawa, kerja kelompok, webinar) dengan pengingat otomatis pada jam 05:00 pagi di Hari H acara.
 * 📌 **To-Do Spontan (Non-Kuliah)**: Pencatatan cepat untuk urusan pribadi/spontan (`/todo`, `/listtodo`, `/berestodo`).
 
@@ -25,7 +25,7 @@
 
 ## 📋 Daftar Perintah Perangkat (Command Reference)
 
-Bot **Qrem** dilengkapi dengan 15 perintah handler interaktif:
+Bot **Qrem** dilengkapi dengan 17 perintah handler interaktif:
 
 | Perintah | Deskripsi |
 | :--- | :--- |
@@ -33,7 +33,10 @@ Bot **Qrem** dilengkapi dengan 15 perintah handler interaktif:
 | `/help` | Menampilkan panduan lengkap seluruh perintah bot |
 | `/jadwal` | Menampilkan jadwal kuliah hari ini |
 | `/jadwal [hari/semua]` | Menampilkan jadwal kuliah hari tertentu atau sepekan penuh |
-| `/rutinitas` | Menampilkan daftar rutinitas harian & status selesainya |
+| `/rutinitas` | Menampilkan daftar rutinitas hari ini & status selesainya |
+| `/rutinitas [hari/semua]` | Menampilkan rutinitas hari tertentu atau seluruh sepekan |
+| `/tambahrutinitas [Hari] \| [Jam] \| [Kegiatan]` | Menambah rutinitas kustom baru (setiap hari atau hari spesifik) |
+| `/hapusrutinitas [ID]` | Menghapus kegiatan rutinitas berdasarkan nomor ID |
 | `/beresrutinitas [ID]` | Mencoret rutinitas yang sudah selesai hari ini (reset otomatis jam 00:00) |
 | `/tambahtugas [Nama] \| [DD-MM-YYYY] \| [Matkul] \| [Jam]` | Menambah tugas kuliah baru dengan deadline & jam (opsional) |
 | `/listtugas` | Menampilkan daftar tugas kuliah aktif & hitung mundur deadline |

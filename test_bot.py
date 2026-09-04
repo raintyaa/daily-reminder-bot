@@ -12,6 +12,8 @@ from bot import (
     is_valid_deadline,
     is_valid_time,
     normalize_time,
+    save_jadwal_data,
+    normalize_rutinitas_item,
     generate_daily_briefing,
     load_subscribers,
     register_subscriber,
@@ -28,6 +30,7 @@ def test_handlers():
     
     expected_commands = {
         "start", "help", "jadwal", "rutinitas", "beresrutinitas",
+        "tambahrutinitas", "hapusrutinitas",
         "tambahtugas", "listtugas", "selesai",
         "todo", "listtodo", "berestodo",
         "tambahagenda", "agenda", "hapusagenda",
@@ -36,7 +39,7 @@ def test_handlers():
     for cmd in expected_commands:
         assert cmd in flat_commands, f"Handler /{cmd} tidak terdaftar!"
     
-    print("[OK] Semua 15 handler terdaftar dengan benar.")
+    print("[OK] Semua 17 handler terdaftar dengan benar.")
 
 def test_jadwal_data():
     """Memverifikasi data jadwal dan rutinitas dapat dimuat dengan baik"""
@@ -173,9 +176,41 @@ def test_task_reminder_logic():
     assert dt.hour == 23 and dt.minute == 59
     print("[OK] Logika filter pengingat tugas (aturan < 6 jam & datetime) terverifikasi.")
 
+def test_rutinitas_crud():
+    """Memverifikasi logika penyeragaman dan filtering hari pada rutinitas"""
+    # 1. Penyeragaman data teks format lama vs objek baru
+    old_str = "07:30 - Senam Pagi"
+    norm1 = normalize_rutinitas_item(old_str, 5)
+    assert norm1["id"] == 5
+    assert norm1["hari"] == "setiap hari"
+    assert norm1["jam"] == "07:30"
+    assert norm1["kegiatan"] == "Senam Pagi"
+
+    # 2. Objek baru dengan hari spesifik
+    new_obj = {"id": 10, "hari": "jumat", "jam": "11:30", "kegiatan": "Salat Jumat"}
+    norm2 = normalize_rutinitas_item(new_obj, 10)
+    assert norm2["hari"] == "jumat"
+    assert norm2["jam"] == "11:30"
+
+    # 3. Simulasi filter hari (misal hari Jumat)
+    semua_rutinitas = [
+        {"id": 1, "hari": "setiap hari", "jam": "04:30", "kegiatan": "Subuh"},
+        {"id": 2, "hari": "jumat", "jam": "11:30", "kegiatan": "Salat Jumat"},
+        {"id": 3, "hari": "minggu", "jam": "08:00", "kegiatan": "Olahraga"}
+    ]
+    hari_jumat_aktif = [
+        r for r in semua_rutinitas 
+        if r["hari"] in ("setiap hari", "semua", "all", "daily", "jumat")
+    ]
+    assert len(hari_jumat_aktif) == 2  # Subuh + Salat Jumat (Olahraga minggu tidak masuk)
+    assert any(r["kegiatan"] == "Salat Jumat" for r in hari_jumat_aktif)
+
+    print("[OK] Logika penyeragaman & filter hari rutinitas terverifikasi.")
+
 if __name__ == "__main__":
     test_handlers()
     test_jadwal_data()
+    test_rutinitas_crud()
     test_tugas_crud()
     test_todo_crud()
     test_agenda_crud()
