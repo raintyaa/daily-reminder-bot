@@ -57,13 +57,25 @@ Bot **Qrem** dilengkapi dengan 17 perintah handler interaktif:
 Daily Reminder Bot/
 ├── .env.example          # Template konfigurasi token bot
 ├── .gitignore            # Daftar file yang diabaikan oleh Git
-├── Procfile              # Konfigurasi worker deployment cloud (Railway/Render)
+├── Procfile              # Konfigurasi worker deployment cloud (Railway)
 ├── README.md             # Dokumentasi lengkap proyek
-├── bot.py                # Kode utama aplikasi Telegram Bot & Auto-Scheduler
+├── bot.py                # Entry point utama aplikasi Telegram Bot (~110 baris)
+├── config.py             # Zona waktu WIB, konstanta hari, & path file JSON
+├── storage.py            # Logika baca/tulis JSON (jadwal, tugas, todo, agenda, subscriber)
+├── utils.py              # Fungsi pembantu (validasi jam, format tanggal, daily briefing)
+├── scheduler.py          # Background loop (alarm rutinitas, kuliah 1 jam lagi, reminder tugas, briefing pagi)
+├── server.py             # Server mini HTTP health-check untuk monitoring cloud
+├── handlers/             # Kumpulan handler perintah Telegram terkelompok rapi
+│   ├── __init__.py       # Inisialisasi & ekspor seluruh 17 command handler
+│   ├── general.py        # /start, /help, /cekpengingat
+│   ├── jadwal.py         # /jadwal, /rutinitas, /tambahrutinitas, /hapusrutinitas, /beresrutinitas
+│   ├── tugas.py          # /tambahtugas, /listtugas, /selesai
+│   ├── todo.py           # /todo, /listtodo, /berestodo
+│   └── agenda.py         # /tambahagenda, /agenda, /hapusagenda
 ├── jadwal.json           # Data jadwal kuliah & rutinitas harian
 ├── keep_alive.sh         # Script auto-restart utilitas
 ├── requirements.txt      # Daftar pustaka dependency Python
-├── test_bot.py           # Standalone assertion test suite (15 handler test)
+├── test_bot.py           # Standalone assertion test suite (17 handler test)
 └── Documentation/        # Dokumentasi tangkapan layar pengujian & notifikasi
 ```
 
