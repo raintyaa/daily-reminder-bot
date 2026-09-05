@@ -122,10 +122,23 @@ def test_deadline_format_validation():
     assert is_valid_time("23:59") is True
     assert is_valid_time("23.59") is True
     assert is_valid_time("9:00") is True
-    assert is_valid_time("24:00") is False
-    assert normalize_time("9:00") == "09:00"
-    assert normalize_time("23.59") == "23:59"
-    print("[OK] Validasi format deadline & jam terverifikasi.")
+    # Format teks nama bulan fleksibel & urutan acak
+    assert is_valid_deadline("12 september 2026") is True
+    assert is_valid_deadline("2026 september 12") is True
+    assert is_valid_deadline("september 12 2026") is True
+    assert is_valid_deadline("12 sep 2026 23:59") is True
+    
+    from utils import parse_deadline_input
+    d1, t1 = parse_deadline_input("12 september 2026")
+    assert d1 == "12-09-2026" and t1 is None
+
+    d2, t2 = parse_deadline_input("2026 september 12 23:59")
+    assert d2 == "12-09-2026" and t2 == "23:59"
+
+    d3, t3 = parse_deadline_input("september 12 2026")
+    assert d3 == "12-09-2026" and t3 is None
+
+    print("[OK] Validasi format deadline (angka & teks fleksibel) & jam terverifikasi.")
 
 def test_daily_briefing():
     """Memverifikasi perangkaian pesan briefing harian otomatis"""

@@ -2,7 +2,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from config import get_now_wib
 from storage import load_tugas_data, save_tugas_data
-from utils import is_valid_deadline, is_valid_time, normalize_time
+from utils import is_valid_deadline, is_valid_time, normalize_time, parse_deadline_input
 
 async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Handler untuk perintah /tambahtugas [Nama Tugas] | [DD-MM-YYYY] | [Matkul] | [Jam (opsional)]"""
@@ -27,22 +27,26 @@ async def tambahtugas_command(update: Update, context: ContextTypes.DEFAULT_TYPE
     matkul = bagian[2] if len(bagian) > 2 and bagian[2] else "Umum"
     jam_raw = bagian[3] if len(bagian) > 3 else "-"
 
-    if not is_valid_deadline(deadline_raw):
+    parsed_date, parsed_time = parse_deadline_input(deadline_raw)
+
+    if not parsed_date:
         pesan = (
             "⚠️ **Format deadline tidak valid.**\n\n"
-            "Gunakan format tanggal **DD-MM-YYYY** (bisa ditambah jam HH:MM).\n"
-            "Contoh: `/tambahtugas Tugas Besar | 20-08-2026 | Keamanan Jaringan | 23:59`\n"
-            "Atau: `/tambahtugas Tugas Besar | 20-08-2026 | Keamanan Jaringan` (tanpa jam)\n\n"
-            "Silakan masukkan ulang dengan format yang benar."
+            "Kamu bisa gunakan format angka atau nama bulan:\n"
+            "• `12-09-2026`\n"
+            "• `12 september 2026`\n"
+            "• `2026 september 12`\n"
+            "• `september 12 2026`\n"
+            "(Bisa ditambahkan jam opsional di bagian akhir, contoh: `23:59`)"            
         )
         await update.message.reply_text(pesan, parse_mode="Markdown")
         return
 
-    deadline_tokens = deadline_raw.strip().split()
-    deadline_str = deadline_tokens[0]
-    if len(deadline_tokens) > 1 and jam_raw == "-":
-        jam_raw = deadline_tokens[1]
+    deadline_str = parsed_date
 
+    if jam_raw == "-" and parsed_time:
+        jam_raw = parsed_time
+    
     if is_valid_time(jam_raw):
         jam_str = normalize_time(jam_raw)
     else:

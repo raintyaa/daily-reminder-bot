@@ -54,21 +54,99 @@ def normalize_rutinitas_item(item, default_id: int = 1) -> dict:
         "kegiatan": str(item)
     }
 
-def is_valid_deadline(deadline: str) -> bool:
-    """Memeriksa apakah deadline sesuai format DD-MM-YYYY (opsional diikuti jam HH:MM)."""
-    if not deadline or deadline == "-":
-        return False
-    tokens = deadline.strip().split()
-    date_part = tokens[0]
-    try:
-        datetime.strptime(date_part, "%d-%m-%Y")
-    except ValueError:
-        return False
+BULAN_MAP = {
+    "januari": 1, "jan": 1, "january": 1,
+    "februari": 2, "feb": 2, "february": 2,
+    "maret": 3, "mar": 3, "march": 3,
+    "april": 4, "apr": 4,
+    "mei": 5, "may": 5,
+    "juni": 6, "jun": 6, "june": 6,
+    "juli": 7, "jul": 7, "july": 7,
+    "agustus": 8, "agu": 8, "agt": 8, "august": 8, "aug": 8,
+    "september": 9, "sep": 9, "sept": 9,
+    "oktober": 10, "okt": 10, "october": 10, "oct": 10,
+    "november": 11, "nov": 11,
+    "desember": 12, "des": 12, "december": 12, "dec": 12    
+}
 
-    if len(tokens) > 1:
-        time_part = tokens[1]
-        return is_valid_time(time_part)
-    return True
+def parse_deadline_input(raw_str: str) -> tuple[str | None, str | None]:
+    """    Mengonversi input deadline teks bebas ke format standar (DD-MM-YYYY) dan jam (HH:MM).
+    Mendukung format angka (12-09-2026) maupun teks acak:
+    - 12 september 2026
+    - 2026 september 12
+    - september 12 2026
+    """
+
+    if not raw_str or raw_str.strip() == "-":
+        return None, None
+    
+    cleaned = raw_str.strip().replace(",", " ")
+    tokens = cleaned.split()
+
+    found_time = None
+    remaining_tokens = []
+
+    for token in tokens:
+        if is_valid_time(token):
+            found_time = normalize_time(token)
+        else:
+            remaining_tokens.append(token)
+    
+    if not remaining_tokens:
+        return None, None
+    
+    if len(remaining_tokens) == 1:
+        part = remaining_tokens[0]
+        try:
+            dt = datetime.strptime(part, "%d-%m-%Y")
+            return dt.strftime("%d-%m-%Y"), found_time
+        except ValueError:
+            return None, None
+    
+    day = None
+    month = None
+    year = None
+
+    for token in remaining_tokens:
+        t_lower = token.lower().strip()
+        if t_lower in BULAN_MAP:
+            if month is None:
+                month = BULAN_MAP[t_lower]
+            else:
+                return None, None
+        elif t_lower.isdigit():
+            val = int(t_lower)
+            if val >= 1000:
+                if year is None:
+                    year = val
+                else:
+                    return None, None
+            elif 1 <= val <= 31:
+                if day is None:
+                    day = val
+                elif year is None:
+                    year = 2000 + val if val < 100 else val
+                else:
+                    return None, None
+            else:
+                return None, None
+        else:
+            return None, None
+    if day is not None and month is not None:
+        if year is None:
+            year = get_now_wib().year
+        try:
+            dt = datetime(year, month, day)
+            return dt.strftime("%d-%m-%Y"), found_time
+        except ValueError:
+            return None, None
+
+    return None, None
+
+def is_valid_deadline(deadline: str) -> bool:
+    """Memeriksa apakah deadline valid (mendukung format angka maupun nama bulan teks)."""
+    date_str, _ = parse_deadline_input(deadline)
+    return date_str is not None
 
 def get_task_deadline_dt(t: dict) -> datetime | None:
     """Mengembalikan objek datetime deadline tugas dalam timezone WIB."""
